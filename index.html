@@ -188,9 +188,12 @@
   <div class="card">
     <div class="checker"></div>
     <div class="inner">
-      <div>
-        <h1>FONOKART RALLY</h1>
-        <p class="sub">Circuito Cala Palmera · 3 vueltas · 8 pilotos</p>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div>
+          <h1>FONOKART RALLY</h1>
+          <p class="sub">Circuito Cala Palmera · 3 vueltas · 8 pilotos</p>
+        </div>
+        <div id="starBadge" style="font:800 15px var(--body);background:var(--ink-2);border-radius:10px;padding:6px 10px;white-space:nowrap">⭐ 0</div>
       </div>
       <div class="label">Tu piloto</div>
       <div class="chars" id="chars"></div>
@@ -237,6 +240,7 @@
   <div class="card"><div class="checker"></div>
     <div class="inner">
       <h1 id="resTitle">¡META!</h1>
+      <div id="resStars" style="font-size:40px;text-align:center;margin:-4px 0 6px"></div>
       <div class="learnres" id="learnRes" hidden></div>
       <table id="resTable"></table>
       <div class="row"><button class="go" id="againBtn" style="font-size:18px">OTRA VEZ</button><button class="ghost" id="menuBtn">Menú</button></div>
@@ -313,6 +317,21 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('fonokart.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('fonokart.' + k, JSON.stringify(v)); } catch (e) {} },
 };
+
+/* ---------- Estrellas: 1 por terminar, 2 por podio, 3 por ganar; los aciertos
+   de la actividad bajan el techo si van flojos. Se acumulan entre carreras. */
+let totalStars = store.get('stars', 0);
+function starsFor(pos, stats) {
+  let stars = pos === 1 ? 3 : pos <= 3 ? 2 : 1;
+  if (activity !== 'libre' && stats.length) {
+    const ok = stats.filter(s => activity === 'espejo' ? s.role === 'target' : s.ok).length;
+    const acc = ok / stats.length;
+    if (acc < 0.5) stars = Math.min(stars, 1);
+    else if (acc < 0.8) stars = Math.min(stars, 2);
+  }
+  return stars;
+}
+function renderStarBadge() { const b = $('starBadge'); if (b) b.textContent = '⭐ ' + totalStars; }
 
 /* ---------- Motor ---------- */
 const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true, powerPreference: 'high-performance' });
@@ -1276,6 +1295,9 @@ function showResults() {
   });
   const p = r.indexOf(player) + 1;
   $('resTitle').textContent = p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
+  const earned = starsFor(p, stats);
+  totalStars += earned; store.set('stars', totalStars); renderStarBadge();
+  $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
   const lr = $('learnRes');
   if (activity === 'espejo') {
     const [t, c] = curPair(), n = role => stats.filter(s => s.role === role).length, miss = stats.filter(s => !s.chosen).length;
@@ -1371,7 +1393,7 @@ $('assistBtn').onclick = () => { assist = !assist; store.set('assist', assist); 
 $('recalBtn').onclick = () => { calibrate(); setPause(false); toast('Calibrado: esta es ahora la postura recta.', 2.5); };
 $('invSBtn').onclick = () => { invSteer = !invSteer; store.set('invS', invSteer); renderControlToggles(); };
 $('invPBtn').onclick = () => { invPitch = !invPitch; store.set('invP', invPitch); renderControlToggles(); };
-renderPairs(); renderControlToggles();
+renderPairs(); renderControlToggles(); renderStarBadge();
 renderToggles();
 $('goBtn').onclick = startRace; $('againBtn').onclick = startRace;
 $('menuBtn').onclick = toMenu; $('quitBtn').onclick = toMenu;
