@@ -228,6 +228,7 @@
       <p class="help" id="actHelp"></p>
       <p class="help" id="helpKeys"><kbd>←</kbd> <kbd>→</kbd> girar · <kbd>↑</kbd> acelerar · <kbd>↓</kbd> frenar · <kbd>Espacio</kbd> derrapar · <kbd>X</kbd> usar objeto.<br>Mantén el derrape en las curvas: al soltar, las chispas azules, naranjas o moradas te dan turbo.</p>
       <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, plátano 🍌 y caparazón 🟢. Mejor con el móvil en horizontal.</p>
+      <p class="help" style="opacity:.7;font-size:11px">🐝 COLMENIA · comunidad y encargos: <a href="https://www.skool.com/logopedia-7339/about?ref=564a4e42ee6043a5afe9876e5a4799d8" target="_blank" rel="noopener" style="color:var(--sun)">skool.com/logopedia-7339</a></p>
       <p class="help" style="opacity:.55;font-size:11px">Voz: Piper (Open Home Foundation) · modelo es_ES-sharvard-medium, entrenado sobre el corpus de la Universidad de Edimburgo. Licencia CC-BY 3.0.</p>
     </div>
   </div>
@@ -250,6 +251,7 @@
     <div class="inner">
       <h1 id="resTitle">¡META!</h1>
       <div id="resStars" style="font-size:40px;text-align:center;margin:-4px 0 6px"></div>
+      <div id="unlockMsg" class="learnres" hidden style="text-align:center"></div>
       <div class="learnres" id="learnRes" hidden></div>
       <table id="resTable"></table>
       <div class="row"><button class="go" id="againBtn" style="font-size:18px">OTRA VEZ</button><button class="ghost" id="menuBtn">Menú</button></div>
@@ -353,11 +355,14 @@ function renderStarBadge() {
    se aplican a la carrera en curso. ---------- */
 const WORLDS = [
   { id: 'cala',   name: 'Cala Palmera',    need: 0,  sky: ['#3ea6f2', '#9fd9ff', '#d6f0ff'], fog: 0xd6f0ff,
-    hemiSky: 0xdff4ff, hemiGround: 0x5b8a3a, sun: 0xfff2d6, mountain: 0x7fa37a, snow: 0xf3f7ff, roof: 0x1f6fd1 },
+    hemiSky: 0xdff4ff, hemiGround: 0x5b8a3a, sun: 0xfff2d6, mountain: 0x7fa37a, snow: 0xf3f7ff, roof: 0x1f6fd1,
+    lore: 'Tu circuito de siempre, junto al mar.' },
   { id: 'bosque', name: 'Bosque Encantado', need: 15, sky: ['#1f6b3a', '#5a9c5a', '#bfe3b0'], fog: 0xbfe3b0,
-    hemiSky: 0xcdf0c0, hemiGround: 0x2f5b2a, sun: 0xd7ffb8, mountain: 0x2f6b3a, snow: 0x9fd98a, roof: 0x6b4a2a },
+    hemiSky: 0xcdf0c0, hemiGround: 0x2f5b2a, sun: 0xd7ffb8, mountain: 0x2f6b3a, snow: 0x9fd98a, roof: 0x6b4a2a,
+    lore: 'Entre los árboles hay una pista nueva esperando.' },
   { id: 'noche',  name: 'Carrera Nocturna', need: 40, sky: ['#050818', '#131a3a', '#2b3866'], fog: 0x0c1230,
-    hemiSky: 0x3a4a8a, hemiGround: 0x0a0a1a, sun: 0x7fa3ff, mountain: 0x1c2440, snow: 0x8fa0d0, roof: 0xffd23f },
+    hemiSky: 0x3a4a8a, hemiGround: 0x0a0a1a, sun: 0x7fa3ff, mountain: 0x1c2440, snow: 0x8fa0d0, roof: 0xffd23f,
+    lore: 'Con las estrellas arriba, la pista se ve distinta.' },
 ];
 const worldsUnlocked = () => WORLDS.filter(w => totalStars >= w.need);
 let worldId = store.get('world', 'cala');
@@ -365,17 +370,17 @@ if (!worldsUnlocked().some(w => w.id === worldId)) worldId = 'cala';
 const WORLD = WORLDS.find(w => w.id === worldId) || WORLDS[0];
 
 const KART_TIERS = [
-  { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0 },
-  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 15 },
-  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 40 },
+  { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0,  lore: 'Fiable de toda la vida.' },
+  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 15, lore: 'El motor suena distinto ahora.' },
+  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 40, lore: 'El más rápido del taller.' },
 ];
 const kartsUnlocked = () => KART_TIERS.filter(t => totalStars >= t.need);
 let kartTierId = store.get('kart', 'clasico');
 if (!kartsUnlocked().some(t => t.id === kartTierId)) kartTierId = 'clasico';
 
 const ITEM_UNLOCKS = [
-  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10 },   // aturde a todos los rivales que van por delante
-  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30 },   // invencible y a tope de velocidad unos segundos
+  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10, lore: 'Ya sabes aturdir a quien vaya delante.' },
+  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30, lore: 'Unos segundos en los que nada te para.' },
 ];
 function activeItems() {
   return ITEMS.concat(ITEM_UNLOCKS.filter(it => totalStars >= it.need));
@@ -1354,9 +1359,12 @@ function showResults() {
   });
   const p = r.indexOf(player) + 1;
   $('resTitle').textContent = p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
-  const earned = starsFor(p, stats);
+  const earned = starsFor(p, stats), before = totalStars;
   totalStars += earned; store.set('stars', totalStars); renderStarBadge();
   $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
+  const newly = [...WORLDS, ...KART_TIERS, ...ITEM_UNLOCKS].filter(x => x.need > before && x.need <= totalStars);
+  const un = $('unlockMsg');
+  if (newly.length) { un.innerHTML = newly.map(x => `🎉 <b>${x.name}</b> — ${x.lore}`).join('<br>'); un.hidden = false; } else un.hidden = true;
   const lr = $('learnRes');
   if (activity === 'espejo') {
     const [t, c] = curPair(), n = role => stats.filter(s => s.role === role).length, miss = stats.filter(s => !s.chosen).length;
