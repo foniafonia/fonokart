@@ -212,6 +212,7 @@
       <p class="help" id="actHelp"></p>
       <p class="help" id="helpKeys"><kbd>←</kbd> <kbd>→</kbd> girar · <kbd>↑</kbd> acelerar · <kbd>↓</kbd> frenar · <kbd>Espacio</kbd> derrapar · <kbd>X</kbd> usar objeto.<br>Mantén el derrape en las curvas: al soltar, las chispas azules, naranjas o moradas te dan turbo.</p>
       <p class="help" id="helpTouch" hidden>El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas de colores dan objetos: turbo ⚡, plátano 🍌 y caparazón 🟢. Mejor con el móvil en horizontal.</p>
+      <p class="help" style="opacity:.55;font-size:11px">Voz: Piper (Open Home Foundation) · modelo es_ES-sharvard-medium, entrenado sobre el corpus de la Universidad de Edimburgo. Licencia CC-BY 3.0.</p>
     </div>
   </div>
 </div>
@@ -785,10 +786,27 @@ function updateRows(dt) {
     } else { q.classList.add('idle'); }
   }
 }
-// Voz del navegador (si el dispositivo la tiene)
+// Voz: primero el clip de FonoMundos (Piper es_ES-sharvard-medium, CC-BY 3.0,
+// suena igual en todos los dispositivos); si el texto no tiene clip, se cae al
+// sintetizador del navegador para no quedarse mudo.
 let voiceOn = store.get('voice', true), lower = store.get('lower', false), esVoice = null;
+const VOZ_CLIPS = { sol:'sol', gato:'gato', perro:'perro', rana:'rana', coche:'coche', pelota:'pelota',
+  'árbol':'arbol', 'limón':'limon', pan:'pan', queso:'queso', llave:'llave', 'ratón':'raton', tomate:'tomate',
+  estrella:'estrella', cama:'cama', zapato:'zapato', nariz:'nariz', paraguas:'paraguas', mariposa:'mariposa',
+  a:'a', e:'e', i:'i', o:'o', u:'u', la:'la', es:'es', hola:'hola' };
+let vozAudio = null;
+function sayClip(text) {
+  const name = VOZ_CLIPS[text.trim().toLowerCase()];
+  if (!name) return false;
+  if (vozAudio) { vozAudio.pause(); vozAudio.currentTime = 0; }
+  vozAudio = new Audio('voz/' + name + '.mp3');
+  vozAudio.play().catch(() => {});
+  return true;
+}
 function say(text) {
-  if (!voiceOn || muted || !window.speechSynthesis) return;
+  if (!voiceOn || muted) return;
+  if (sayClip(text)) return;
+  if (!window.speechSynthesis) return;
   try {
     if (!esVoice) esVoice = speechSynthesis.getVoices().find(v => /^es(-|_)ES/i.test(v.lang)) || speechSynthesis.getVoices().find(v => /^es/i.test(v.lang)) || null;
     speechSynthesis.cancel();
