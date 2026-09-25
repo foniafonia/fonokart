@@ -107,24 +107,24 @@
   .seg.five{grid-template-columns:repeat(3,1fr)}
   .seg.five button{font-size:12px;padding:9px 0}
   .actBox{border:2px solid var(--sun);border-radius:12px;padding:10px;background:rgba(255,210,63,.08)}
+  body.learn .item{top:calc(env(safe-area-inset-top,0px) + 68px)}
+  body.learn .topbtns{top:calc(env(safe-area-inset-top,0px) + 81px)}
   .toggles{display:flex;gap:10px;flex-wrap:wrap}
   .toggles .ghost{flex:1;padding:8px;font-size:13px}
-  .quest{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%);pointer-events:auto;cursor:pointer;
-    min-width:150px;padding:6px 16px 8px;border-radius:14px;background:var(--cream);color:var(--ink);border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);
-    display:flex;flex-direction:column;align-items:center;gap:2px;font:800 10.5px var(--body);letter-spacing:.1em;text-transform:uppercase;transition:background .2s}
-  .quest b{font:400 34px/1.05 var(--display);letter-spacing:.03em;text-transform:none;white-space:nowrap}
-  .quest b.emoji{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:42px;line-height:1.1}
+  .quest{position:absolute;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;transform:translateX(-50%);pointer-events:auto;cursor:pointer;
+    min-width:96px;max-width:132px;padding:4px 10px 6px;border-radius:12px;background:var(--cream);color:var(--ink);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:1px;font:800 8.5px var(--body);letter-spacing:.08em;text-transform:uppercase;transition:background .2s;opacity:.92}
+  .quest b{font:400 22px/1.05 var(--display);letter-spacing:.03em;text-transform:none;white-space:nowrap}
+  .quest b.emoji{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:28px;line-height:1.1}
   .quest.idle b{opacity:.35}
   .quest.ok{background:#a6eca0}
   .quest.no{background:#ffb8b0}
-  body.learn .item{left:calc(50% - 176px);transform:none}
-  body.learn .topbtns{left:calc(50% + 136px)}
   .learnres{background:var(--ink-2);border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.5}
   .learnres b{color:var(--sun)}
   .learnres ul{margin:6px 0 0;padding-left:18px;color:var(--mute);font-size:13px}
   .em{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
   @media (min-width:640px){.card{max-width:600px}.chars{grid-template-columns:repeat(8,1fr)}}
-  @media (max-aspect-ratio:1/1){body.learn .quest{top:calc(env(safe-area-inset-top,0px) + 200px)}body.learn .item{left:50%;transform:translateX(-50%)}body.learn .topbtns{left:calc(50% + 46px)}body.learn .msg{top:48%}}
+  @media (max-aspect-ratio:1/1){body.learn .msg{top:48%}}
   #tFire{display:none;width:96px;height:96px;background:rgba(31,111,209,.6);font-size:12px}
   body.tilt #tFire{display:grid}
   body.tilt #tLeft, body.tilt #tRight, body.tilt #tBrake, body.tilt #tItem{display:none}
@@ -935,15 +935,14 @@ function playerControl() {
   if (tiltOn()) {
     if (!steer) steer = tilt.steer;
     brake = tilt.pitch < -14 || input.brake;
-    // Móvil quieto (o casi): velocidad tranquila constante. Inclinar un poco más
-    // hacia delante (hasta ~16º) sube el tope de velocidad, sin exigir mucho giro
-    // para que el niño no pierda de vista la pantalla.
-    const TO = 16;
+    // Móvil quieto (o casi): velocidad tranquila constante, sin exigir ninguna
+    // inclinación. Un poco más hacia delante (hasta ~10º, giro pequeño) sube el
+    // tope de velocidad, para que el niño no pierda de vista la pantalla.
     if (autoGas) {
-      const CRUISE = 0.55, FROM = 0;
+      const CRUISE = 0.65, FROM = 0, TO = 10;
       throttle = brake ? 0 : clamp(CRUISE + (tilt.pitch - FROM) / (TO - FROM) * (1 - CRUISE), CRUISE, 1);
     } else {
-      const FROM = 7;
+      const FROM = 4, TO = 12;
       throttle = brake ? 0 : clamp((tilt.pitch - FROM) / (TO - FROM), 0, 1);
     }
     gas = throttle > 0;
@@ -960,7 +959,7 @@ function playerControl() {
 }
 
 /* ---------- Sensor de movimiento ---------- */
-let control = store.get('control', 'tilt'), autoGas = store.get('autogas', false), assist = store.get('assist', true);
+let control = store.get('control', 'tilt'), autoGas = store.get('autogas', true), assist = store.get('assist', true);
 let invSteer = store.get('invS', false), invPitch = store.get('invP', false), tiltFailed = false;
 const tilt = { live: false, got: false, sx: 0, sy: 0, sz: 0, steer: 0, pitch: 0, n0: null };
 const tiltOn = () => touchMode && control === 'tilt' && !tiltFailed;
