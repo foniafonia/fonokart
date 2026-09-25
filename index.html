@@ -87,6 +87,8 @@
     display:flex;flex-direction:column;align-items:center;gap:4px;font:700 12px var(--body);cursor:pointer}
   .char i{width:26px;height:26px;border-radius:50%;border:3px solid #fff;display:block}
   .char[aria-pressed="true"]{border-color:var(--sun);background:#34397a}
+  .char.locked{opacity:.45;cursor:default}
+  .char small{display:block;font-size:9px;font-weight:700;opacity:.8;margin-top:1px}
   .seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--ink-2);border-radius:10px;padding:3px;gap:3px}
   .seg button{border:0;background:transparent;color:var(--cream);font:700 13px var(--body);padding:9px 0;border-radius:8px;cursor:pointer}
   .seg button[aria-pressed="true"]{background:var(--cream);color:var(--ink)}
@@ -193,10 +195,17 @@
           <h1>FONOKART RALLY</h1>
           <p class="sub">Circuito Cala Palmera · 3 vueltas · 8 pilotos</p>
         </div>
-        <div id="starBadge" style="font:800 15px var(--body);background:var(--ink-2);border-radius:10px;padding:6px 10px;white-space:nowrap">⭐ 0</div>
+        <div style="text-align:right">
+          <div id="starBadge" style="font:800 15px var(--body);background:var(--ink-2);border-radius:10px;padding:6px 10px;white-space:nowrap">⭐ 0</div>
+          <p id="nextUnlock" class="help" style="margin:4px 0 0;font-size:10px;text-align:right"></p>
+        </div>
       </div>
       <div class="label">Tu piloto</div>
       <div class="chars" id="chars"></div>
+      <div class="label">Tu coche</div>
+      <div class="chars" id="kartTiers" style="grid-template-columns:repeat(3,1fr)"></div>
+      <div class="label">Mundo</div>
+      <div class="chars" id="worlds" style="grid-template-columns:repeat(3,1fr)"></div>
       <div class="actBox">
         <div class="label" style="color:var(--sun)">🗣️ Actividad de logopedia</div>
         <p class="help" style="margin:2px 0 8px">Elige una para que el juego hable y pida letras, sílabas o palabras. "Libre" es la carrera clásica, sin lenguaje.</p>
@@ -331,16 +340,55 @@ function starsFor(pos, stats) {
   }
   return stars;
 }
-function renderStarBadge() { const b = $('starBadge'); if (b) b.textContent = '⭐ ' + totalStars; }
+function renderStarBadge() {
+  const b = $('starBadge'); if (b) b.textContent = '⭐ ' + totalStars;
+  renderKartTiers(); renderWorlds();
+  const next = [...WORLDS, ...KART_TIERS, ...ITEM_UNLOCKS].filter(x => x.need > totalStars).sort((a, b2) => a.need - b2.need)[0];
+  const nu = $('nextUnlock');
+  if (nu) nu.textContent = next ? `Próximo: ${next.name} a ${next.need}⭐ (faltan ${next.need - totalStars})` : '¡Todo desbloqueado!';
+}
+
+/* ---------- Progresión: mundos, coches y armas que se desbloquean con estrellas.
+   El mundo cambia el ambiente (cielo, niebla, montañas, tejado); coche y armas
+   se aplican a la carrera en curso. ---------- */
+const WORLDS = [
+  { id: 'cala',   name: 'Cala Palmera',    need: 0,  sky: ['#3ea6f2', '#9fd9ff', '#d6f0ff'], fog: 0xd6f0ff,
+    hemiSky: 0xdff4ff, hemiGround: 0x5b8a3a, sun: 0xfff2d6, mountain: 0x7fa37a, snow: 0xf3f7ff, roof: 0x1f6fd1 },
+  { id: 'bosque', name: 'Bosque Encantado', need: 15, sky: ['#1f6b3a', '#5a9c5a', '#bfe3b0'], fog: 0xbfe3b0,
+    hemiSky: 0xcdf0c0, hemiGround: 0x2f5b2a, sun: 0xd7ffb8, mountain: 0x2f6b3a, snow: 0x9fd98a, roof: 0x6b4a2a },
+  { id: 'noche',  name: 'Carrera Nocturna', need: 40, sky: ['#050818', '#131a3a', '#2b3866'], fog: 0x0c1230,
+    hemiSky: 0x3a4a8a, hemiGround: 0x0a0a1a, sun: 0x7fa3ff, mountain: 0x1c2440, snow: 0x8fa0d0, roof: 0xffd23f },
+];
+const worldsUnlocked = () => WORLDS.filter(w => totalStars >= w.need);
+let worldId = store.get('world', 'cala');
+if (!worldsUnlocked().some(w => w.id === worldId)) worldId = 'cala';
+const WORLD = WORLDS.find(w => w.id === worldId) || WORLDS[0];
+
+const KART_TIERS = [
+  { id: 'clasico', name: 'Clásico', mult: 1.00, need: 0 },
+  { id: 'turbo',   name: 'Turbo',   mult: 1.08, need: 15 },
+  { id: 'rayo',    name: 'Rayo',    mult: 1.16, need: 40 },
+];
+const kartsUnlocked = () => KART_TIERS.filter(t => totalStars >= t.need);
+let kartTierId = store.get('kart', 'clasico');
+if (!kartsUnlocked().some(t => t.id === kartTierId)) kartTierId = 'clasico';
+
+const ITEM_UNLOCKS = [
+  { id: 'rayo',     name: 'Arma: Rayo',     icon: '🌩️', weight: 2, need: 10 },   // aturde a todos los rivales que van por delante
+  { id: 'estrella', name: 'Arma: Estrella', icon: '⭐', weight: 2, need: 30 },   // invencible y a tope de velocidad unos segundos
+];
+function activeItems() {
+  return ITEMS.concat(ITEM_UNLOCKS.filter(it => totalStars >= it.need));
+}
 
 /* ---------- Motor ---------- */
 const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xd6f0ff, 280, 1350);
+scene.fog = new THREE.Fog(WORLD.fog, 280, 1350);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2600);
-scene.add(new THREE.HemisphereLight(0xdff4ff, 0x5b8a3a, 0.95));
-const sun = new THREE.DirectionalLight(0xfff2d6, 0.75); sun.position.set(300, 500, 200); scene.add(sun);
+scene.add(new THREE.HemisphereLight(WORLD.hemiSky, WORLD.hemiGround, 0.95));
+const sun = new THREE.DirectionalLight(WORLD.sun, 0.75); sun.position.set(300, 500, 200); scene.add(sun);
 
 function tex(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -354,7 +402,7 @@ function noise(g, w, h, n, cols) {
 }
 scene.background = tex(4, 256, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h);
-  gr.addColorStop(0, '#3ea6f2'); gr.addColorStop(0.55, '#9fd9ff'); gr.addColorStop(1, '#d6f0ff');
+  gr.addColorStop(0, WORLD.sky[0]); gr.addColorStop(0.55, WORLD.sky[1]); gr.addColorStop(1, WORLD.sky[2]);
   g.fillStyle = gr; g.fillRect(0, 0, w, h);
 });
 
@@ -479,7 +527,7 @@ function buildBoards() {
 buildBoards();
 {
   const standMat = new THREE.MeshLambertMaterial({ color: 0xb9c1d6 });
-  const roofMat = new THREE.MeshLambertMaterial({ color: 0x1f6fd1 });
+  const roofMat = new THREE.MeshLambertMaterial({ color: WORLD.roof });
   const bodies = [], units = [];
   for (let i = -56; i <= 56; i += 8) for (const s of [-1, 1]) {
     const g = new THREE.Group(); g.position.copy(at(i, 0)); g.rotation.y = headingAt(i);
@@ -534,8 +582,8 @@ const farFromTrack = (x, z, m) => { for (let i = 0; i < N; i += 4) { const dx = 
   }
   trunks.count = t; palms.count = p; rounds.count = r;
   scene.add(trunks, palms, rounds);
-  const mm = new THREE.MeshLambertMaterial({ color: 0x7fa37a, flatShading: true });
-  const snow = new THREE.MeshLambertMaterial({ color: 0xf3f7ff, flatShading: true });
+  const mm = new THREE.MeshLambertMaterial({ color: WORLD.mountain, flatShading: true });
+  const snow = new THREE.MeshLambertMaterial({ color: WORLD.snow, flatShading: true });
   for (let i = 0; i < 16; i++) {
     const a = i / 16 * TAU + rnd(-0.1, 0.1), R = rnd(1000, 1200), h = rnd(160, 320);
     const m = new THREE.Mesh(new THREE.ConeGeometry(h * 0.9, h, 6), mm); m.position.set(Math.cos(a) * R + 50, h / 2 - 5, Math.sin(a) * R); scene.add(m);
@@ -593,7 +641,7 @@ function makeKart(pilot) {
 const karts = PILOTS.map((p, i) => Object.assign(makeKart(p), {
   id: i, name: p.name, color: p.color, pos: new V3(), h: 0, speed: 0, idx: 0, lap: -1, prog: 0, lat: 0,
   offroad: false, drifting: false, driftDir: 0, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0,
-  isPlayer: false, finished: false, time: 0, skill: 1, base: 1, lane: 0, laneT: 0, laneTarget: 0, itemT: 0,
+  isPlayer: false, finished: false, time: 0, skill: 1, base: 1, lane: 0, laneT: 0, laneTarget: 0, itemT: 0, invincible: 0,
 }));
 
 /* ---------- Cajas y objetos ---------- */
@@ -661,11 +709,12 @@ const shellM = lam(0x2fb34a), shellBase = lam(0xfff8e7);
 let bananas = [], shells = [];
 
 function pickItem() {
-  const tot = ITEMS.reduce((s, it) => s + it.weight, 0); let r = Math.random() * tot;
-  for (const it of ITEMS) { if ((r -= it.weight) < 0) return it.id; }
-  return ITEMS[0].id;
+  const pool = activeItems();
+  const tot = pool.reduce((s, it) => s + it.weight, 0); let r = Math.random() * tot;
+  for (const it of pool) { if ((r -= it.weight) < 0) return it.id; }
+  return pool[0].id;
 }
-const itemIcon = id => (ITEMS.find(i => i.id === id) || {}).icon || '';
+const itemIcon = id => (activeItems().find(i => i.id === id) || {}).icon || '';
 function useItem(k) {
   if (!k.item || k.rolling > 0) return;
   const it = k.item; k.item = null;
@@ -681,10 +730,18 @@ function useItem(k) {
     scene.add(g); shells.push({ mesh: g, s: k.idx + 3, lat: k.lat, owner: k, life: 7, t: 0 });
     if (k.isPlayer) sfx.shoot();
   }
+  if (it === 'rayo') {                    // aturde a todos los que van por delante
+    karts.forEach(o => { if (o !== k && o.prog > k.prog) spinOut(o); });
+    if (k.isPlayer) sfx.shoot();
+  }
+  if (it === 'estrella') {                // invencible y a tope de velocidad un rato
+    k.invincible = 6;
+    if (k.isPlayer) sfx.boost();
+  }
   if (k.isPlayer) renderItem();
 }
 function spinOut(k) {
-  if (k.spin > 0) return;
+  if (k.spin > 0 || k.invincible > 0) return;
   k.spin = 1.2; k.drifting = false; k.charge = 0; k.boost = 0;
   if (k.isPlayer) sfx.hit();
 }
@@ -860,9 +917,9 @@ function resetRace() {
     k.idx = N - 6 - row * 5 - colm * 2;
     k.lat = colm ? -5 : 5;
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
-    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0 });
+    Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0 });
     k.isPlayer = k === player;
-    k.base = k.isPlayer ? 1 : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
+    k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
     updateTrack(k); k.prog = -1 * N + k.idx;
     syncMesh(k, 0);
@@ -892,12 +949,14 @@ function updateTrack(k) {
 }
 
 function physics(k, c, dt) {
+  if (k.invincible > 0) k.invincible -= dt;
   if (k.spin > 0) {
     k.spin -= dt; k.speed *= Math.pow(0.15, dt);
     k.vis.rotation.y += dt * 13;
   } else {
     let max = (k.offroad ? 22 : 52) * k.skill;
-    if (k.boost > 0) { max = 78; k.boost -= dt; }
+    if (k.invincible > 0) { max = 80; }
+    else if (k.boost > 0) { max = 78; k.boost -= dt; }
     else if (c.throttle != null) max *= c.throttle;
     if (c.gas) k.speed += (k.boost > 0 ? 70 : 27) * dt;
     else if (c.brake) k.speed -= (k.speed > 0 ? 48 : 14) * dt;
@@ -1340,6 +1399,33 @@ $('chars').addEventListener('click', e => {
   $('chars').querySelectorAll('.char').forEach(x => x.setAttribute('aria-pressed', x === b));
   resetRace();
 });
+// Selector de coche (más potencia) y de mundo (ambiente), ambos con estrellas
+function renderKartTiers() {
+  $('kartTiers').innerHTML = KART_TIERS.map(t => {
+    const locked = totalStars < t.need;
+    return `<button class="char${locked ? ' locked' : ''}" data-id="${t.id}" aria-pressed="${t.id === kartTierId}">${t.name}${locked ? `<small>🔒 ${t.need}⭐</small>` : ''}</button>`;
+  }).join('');
+}
+$('kartTiers').addEventListener('click', e => {
+  const b = e.target.closest('.char'); if (!b || b.classList.contains('locked')) return;
+  kartTierId = b.dataset.id; store.set('kart', kartTierId);
+  $('kartTiers').querySelectorAll('.char').forEach(x => x.setAttribute('aria-pressed', x === b));
+  resetRace();
+});
+function renderWorlds() {
+  $('worlds').innerHTML = WORLDS.map(w => {
+    const locked = totalStars < w.need;
+    return `<button class="char${locked ? ' locked' : ''}" data-id="${w.id}" aria-pressed="${w.id === worldId}">${w.name}${locked ? `<small>🔒 ${w.need}⭐</small>` : ''}</button>`;
+  }).join('');
+}
+$('worlds').addEventListener('click', e => {
+  const b = e.target.closest('.char'); if (!b || b.classList.contains('locked')) return;
+  if (b.dataset.id === worldId) return;
+  store.set('world', b.dataset.id);
+  location.reload();
+});
+renderKartTiers(); renderWorlds();
+
 $('diff').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.d === diff));
 $('diff').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
