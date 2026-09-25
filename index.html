@@ -833,9 +833,7 @@ function answer(r, b) {
     sfx.ok(); showMsg('¡BIEN!', 1); flashQuest('ok');
   } else {
     player.speed *= 0.55;
-    sfx.no(); showMsg('ERA ' + (r.task.optImg ? '' : r.task.answer), 1.6); flashQuest('no');
-    if (r.task.optImg) { $('msg').innerHTML = 'ERA <span class="em">' + r.task.answer + '</span>'; }
-    say('era ' + r.task.say);
+    sfx.no(); flashQuest('no');
   }
 }
 function flashQuest(cls) { const q = $('quest'); q.classList.remove('ok', 'no'); q.classList.add(cls); questFlash = 1.2; }
