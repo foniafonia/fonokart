@@ -672,7 +672,7 @@ function boxTexture(label) {
   });
 }
 const boxMat = new THREE.MeshLambertMaterial({ map: boxTexture(BOX_LABEL), transparent: true, opacity: 0.92, emissive: 0x333333 });
-const boxGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4), bigBoxGeo = new THREE.BoxGeometry(4.1, 4.1, 4.1), wideBoxGeo = new THREE.BoxGeometry(5.6, 3.7, 2.3);
+const boxGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4), bigBoxGeo = new THREE.BoxGeometry(5.2, 5.2, 5.2), wideBoxGeo = new THREE.BoxGeometry(7, 4.6, 2.8);
 let boxes = [], rows = [];
 
 // Cajas de actividad: cara clara, marco de color, letra o dibujo grande
@@ -709,7 +709,7 @@ function buildFreeBoxes() {
 function buildRows() {
   for (const f of [0.08, 0.22, 0.36, 0.52, 0.66, 0.83]) {
     const idx = Math.floor(f * N), r = { idx, boxes: [], state: 'active', task: null, lastD: 0 };
-    [-7, 0, 7].forEach((lat, j) => {
+    [-7.5, 0, 7.5].forEach((lat, j) => {
       const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const m = new THREE.Mesh(activity === 'palabras' ? wideBoxGeo : bigBoxGeo, mat);
       m.position.copy(at(idx, lat, 2.4)); m.rotation.y = headingAt(idx); scene.add(m);
@@ -1493,7 +1493,7 @@ function renderControlToggles() {
 function setTouchHelp() {
   $('helpTouch').textContent = control === 'tilt'
     ? 'Sujeta el móvil en horizontal. Inclínalo a los lados para girar, hacia delante para acelerar y hacia atrás para frenar. Se calibra al salir: empieza con el móvil en la postura cómoda. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. DISPARO usa el objeto.'
-    : 'El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas ? dan objetos: turbo ⚡, plátano 🍌 y caparazón 🟢.';
+    : 'El kart acelera solo. Gira con ◀ ▶. Mantén DERRAPE en las curvas y suéltalo para ganar turbo. Las cajas ? dan objetos: turbo ⚡, plátano 🍌 y caparazón 🟢. Mantén FRENO al lanzar el caparazón para tirarlo hacia atrás.';
 }
 $('controlBtn').onclick = () => { control = control === 'tilt' ? 'buttons' : 'tilt'; store.set('control', control); tiltFailed = false; renderControlToggles(); applyControlClass(); };
 $('gasBtn').onclick = () => { autoGas = !autoGas; store.set('autogas', autoGas); renderControlToggles(); };
