@@ -234,6 +234,17 @@
   </div>
 </div>
 
+<div class="overlay" id="controlChoice" hidden>
+  <div class="card"><div class="checker"></div>
+    <div class="inner">
+      <h1 style="font-size:30px">¿CÓMO QUIERES CONDUCIR?</h1>
+      <button class="go" id="ccTilt" style="font-size:20px">📱 Inclinando el móvil</button>
+      <button class="go" id="ccButtons" style="font-size:20px;background:var(--teal)">👆 Con botones en pantalla</button>
+      <p class="help" style="text-align:center">Lo puedes cambiar luego en pausa si no te convence.</p>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="pause" hidden>
   <div class="card"><div class="checker"></div>
     <div class="inner">
@@ -661,7 +672,7 @@ function boxTexture(label) {
   });
 }
 const boxMat = new THREE.MeshLambertMaterial({ map: boxTexture(BOX_LABEL), transparent: true, opacity: 0.92, emissive: 0x333333 });
-const boxGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4), bigBoxGeo = new THREE.BoxGeometry(3.4, 3.4, 3.4), wideBoxGeo = new THREE.BoxGeometry(4.6, 3.1, 2);
+const boxGeo = new THREE.BoxGeometry(2.4, 2.4, 2.4), bigBoxGeo = new THREE.BoxGeometry(4.1, 4.1, 4.1), wideBoxGeo = new THREE.BoxGeometry(5.6, 3.7, 2.3);
 let boxes = [], rows = [];
 
 // Cajas de actividad: cara clara, marco de color, letra o dibujo grande
@@ -698,7 +709,7 @@ function buildFreeBoxes() {
 function buildRows() {
   for (const f of [0.08, 0.22, 0.36, 0.52, 0.66, 0.83]) {
     const idx = Math.floor(f * N), r = { idx, boxes: [], state: 'active', task: null, lastD: 0 };
-    [-8.2, -2.75, 2.75, 8.2].forEach((lat, j) => {
+    [-7, 0, 7].forEach((lat, j) => {
       const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const m = new THREE.Mesh(activity === 'palabras' ? wideBoxGeo : bigBoxGeo, mat);
       m.position.copy(at(idx, lat, 2.4)); m.rotation.y = headingAt(idx); scene.add(m);
@@ -730,9 +741,10 @@ function useItem(k) {
     scene.add(m); bananas.push({ mesh: m, pos: m.position, owner: k, t: 0 });
   }
   if (it === 'caparazon') {
+    const back = k.isPlayer ? input.brake : false;   // mantén frenar + objeto para tirarlo hacia atrás
     const g = new THREE.Group(); const top = new THREE.Mesh(shellG, shellM); g.add(top);
     const base = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.35, 12), shellBase); g.add(base);
-    scene.add(g); shells.push({ mesh: g, s: k.idx + 3, lat: k.lat, owner: k, life: 7, t: 0 });
+    scene.add(g); shells.push({ mesh: g, s: k.idx + (back ? -3 : 3), dir: back ? -1 : 1, lat: k.lat, owner: k, life: 7, t: 0 });
     if (k.isPlayer) sfx.shoot();
   }
   if (it === 'rayo') {                    // aturde a todos los que van por delante
@@ -767,12 +779,12 @@ const curPair = () => { const p = PAIRS[pairIdx] || PAIRS[0]; return pairSwap ? 
 function makeTask(act) {
   if (act === 'espejo') {
     const [t, c] = curPair(), T = cased(t.toUpperCase()), C = cased(c.toUpperCase());
-    const roles = shuffle(['target', 'confuse', 'item', 'item']);
+    const roles = shuffle(['target', 'confuse', 'item']);
     return { prompt: T, img: false, say: t, answer: T, confuse: C, sayC: c, roles, options: roles.map(r => r === 'target' ? T : r === 'confuse' ? C : '?'), optImg: false };
   }
   if (act === 'letras') {
     const a = fresh(() => pick(LETRAS), x => x);
-    const opts = shuffle(LETRAS.filter(x => x !== a)).slice(0, 3);
+    const opts = shuffle(LETRAS.filter(x => x !== a)).slice(0, 2);
     return { prompt: cased(a), img: false, say: a.toLowerCase(), answer: cased(a), options: shuffle([a, ...opts].map(cased)), optImg: false };
   }
   if (act === 'silabas') {
@@ -783,14 +795,13 @@ function makeTask(act) {
     let g = 0;
     while (set.size < 2 && g++ < 30) tryAdd(c, pick(VOCALES));                 // misma consonante
     while (set.size < 3 && g++ < 60) tryAdd(pick(CONSONANTES), v);            // misma vocal
-    while (set.size < 4 && g++ < 90) tryAdd(pick(CONSONANTES), pick(VOCALES));
     const a = c + v;
     return { prompt: cased(a), img: false, say: a.toLowerCase(), answer: cased(a), options: shuffle([...set].map(cased)), optImg: false };
   }
   const w = fresh(() => pick(PALABRAS), x => x[0]);
   const same = shuffle(PALABRAS.filter(x => x !== w && x[0][0] === w[0][0]));
   const others = shuffle(PALABRAS.filter(x => x !== w && x[0][0] !== w[0][0]));
-  const dis = same.slice(0, 1).concat(others).slice(0, 3);
+  const dis = same.slice(0, 1).concat(others).slice(0, 2);
   const all = shuffle([w, ...dis]);
   if (act === 'palabras') return { prompt: w[1], img: true, say: w[0].toLowerCase(), answer: cased(w[0]), options: all.map(x => cased(x[0])), optImg: false };
   return { prompt: cased(w[0]), img: false, say: w[0].toLowerCase(), answer: w[1], options: all.map(x => x[1]), optImg: true };
@@ -1139,7 +1150,7 @@ function updateObjects(dt) {
     return true;
   });
   shells = shells.filter(s => {
-    s.t += dt; s.life -= dt; s.s += 100 * dt / SEG;
+    s.t += dt; s.life -= dt; s.s += s.dir * 100 * dt / SEG;
     const i0 = Math.floor(s.s), f = s.s - i0, a = at(i0, s.lat), b = at(i0 + 1, s.lat);
     s.mesh.position.set(a.x + (b.x - a.x) * f, 0.35, a.z + (b.z - a.z) * f); s.mesh.rotation.y += dt * 12;
     if (s.life <= 0) { scene.remove(s.mesh); return false; }
@@ -1380,6 +1391,11 @@ function showResults() {
   $('results').hidden = false; $('hud').hidden = true;
 }
 function startRace() {
+  if (touchMode) { $('menu').hidden = true; $('controlChoice').hidden = false; return; }
+  reallyStartRace();
+}
+function reallyStartRace() {
+  $('controlChoice').hidden = true;
   initAudio(); enableTilt();
   if (tiltOn()) toast('Sujeta el móvil recto, en tu postura cómoda: se calibra en la cuenta atrás.', 3.2);
   $('menu').hidden = true; $('results').hidden = true; $('pause').hidden = true; paused = false;
@@ -1487,9 +1503,11 @@ $('invSBtn').onclick = () => { invSteer = !invSteer; store.set('invS', invSteer)
 $('invPBtn').onclick = () => { invPitch = !invPitch; store.set('invP', invPitch); renderControlToggles(); };
 renderPairs(); renderControlToggles(); renderStarBadge();
 renderToggles();
-$('goBtn').onclick = startRace; $('againBtn').onclick = startRace;
+$('goBtn').onclick = startRace; $('againBtn').onclick = reallyStartRace;
+$('ccTilt').onclick = () => { control = 'tilt'; store.set('control', control); renderControlToggles(); applyControlClass(); reallyStartRace(); };
+$('ccButtons').onclick = () => { control = 'buttons'; store.set('control', control); renderControlToggles(); applyControlClass(); reallyStartRace(); };
 $('menuBtn').onclick = toMenu; $('quitBtn').onclick = toMenu;
-$('restartBtn').onclick = startRace; $('resumeBtn').onclick = () => setPause(false);
+$('restartBtn').onclick = reallyStartRace; $('resumeBtn').onclick = () => setPause(false);
 $('pauseBtn').onclick = () => setPause(true);
 $('muteBtn').onclick = () => { initAudio(); setMuted(!muted); };
 setMuted(muted);
