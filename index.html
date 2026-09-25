@@ -272,6 +272,11 @@ const PALABRAS = [
   ['FLOR', '🌸'], ['ÁRBOL', '🌳'], ['LIMÓN', '🍋'], ['PERA', '🍐'], ['UVAS', '🍇'], ['PAN', '🍞'], ['QUESO', '🧀'], ['LLAVE', '🔑'],
   ['RATÓN', '🐭'], ['LEÓN', '🦁'], ['MONO', '🐵'], ['TOMATE', '🍅'], ['PIÑA', '🍍'], ['GLOBO', '🎈'], ['LIBRO', '📖'], ['ESTRELLA', '⭐'],
   ['CAMA', '🛏️'], ['TAZA', '☕'], ['ZAPATO', '👟'], ['SETA', '🍄'], ['NUBE', '☁️'], ['FUEGO', '🔥'], ['CERDO', '🐷'], ['POLLO', '🐥'],
+  ['BOTA', '👢'], ['BICI', '🚲'], ['BÚHO', '🦉'], ['BEBÉ', '👶'], ['BOSQUE', '🌲'], ['BRAZO', '💪'],
+  ['DEDO', '👆'], ['DADO', '🎲'], ['DELFÍN', '🐬'], ['DIENTE', '🦷'],
+  ['NIDO', '🪺'], ['NARANJA', '🍊'], ['NARIZ', '👃'],
+  ['PARAGUAS', '☂️'], ['PIZZA', '🍕'], ['PINTURA', '🎨'],
+  ['MESA', '🪑'], ['MARIPOSA', '🦋'],
 ];
 const ACTS = [
   { id: 'libre',    name: 'Libre',    help: 'Carrera normal: las cajas dan objetos al azar.' },
@@ -852,6 +857,7 @@ function physics(k, c, dt) {
   } else {
     let max = (k.offroad ? 22 : 52) * k.skill;
     if (k.boost > 0) { max = 78; k.boost -= dt; }
+    else if (c.throttle != null) max *= c.throttle;
     if (c.gas) k.speed += (k.boost > 0 ? 70 : 27) * dt;
     else if (c.brake) k.speed -= (k.speed > 0 ? 48 : 14) * dt;
     else k.speed -= Math.sign(k.speed) * Math.min(Math.abs(k.speed), 11 * dt);
@@ -903,12 +909,23 @@ function aiControl(k, dt) {
 function playerControl() {
   if (player.finished) return aiControl(player, 0);
   let steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-  let gas = touchMode ? !input.brake : input.gas, brake = input.brake;
+  let gas = touchMode ? !input.brake : input.gas, brake = input.brake, throttle = 1;
   if (tiltOn()) {
     if (!steer) steer = tilt.steer;
-    gas = autoGas ? tilt.pitch > -14 : tilt.pitch > 7;
     brake = tilt.pitch < -14 || input.brake;
-    if (input.gas) gas = true;
+    // Móvil quieto (o casi): velocidad tranquila constante. Inclinar un poco más
+    // hacia delante (hasta ~16º) sube el tope de velocidad, sin exigir mucho giro
+    // para que el niño no pierda de vista la pantalla.
+    const TO = 16;
+    if (autoGas) {
+      const CRUISE = 0.55, FROM = 0;
+      throttle = brake ? 0 : clamp(CRUISE + (tilt.pitch - FROM) / (TO - FROM) * (1 - CRUISE), CRUISE, 1);
+    } else {
+      const FROM = 7;
+      throttle = brake ? 0 : clamp((tilt.pitch - FROM) / (TO - FROM), 0, 1);
+    }
+    gas = throttle > 0;
+    if (input.gas) { gas = true; throttle = 1; }
   }
   // Ayuda al volante: endereza el kart con la pista cuando no se gira mucho
   if (assist && !player.drifting && player.spin <= 0) {
@@ -917,7 +934,7 @@ function playerControl() {
     const a = clamp(-d * 1.5, -1, 1);
     steer = clamp(steer + a * (1 - Math.min(1, Math.abs(steer))) * 0.85, -1, 1);
   }
-  return { gas, brake, steer, drift: input.drift };
+  return { gas, brake, steer, drift: input.drift, throttle };
 }
 
 /* ---------- Sensor de movimiento ---------- */
@@ -1058,6 +1075,7 @@ function initAudio() {
     engLP = AC.createBiquadFilter(); engLP.type = 'lowpass'; engLP.frequency.value = 500;
     engGain = AC.createGain(); engGain.gain.value = 0;
     eng.connect(engLP); engLP.connect(engGain); engGain.connect(master); eng.start();
+    startMusic();
   } catch (e) { AC = null; }
 }
 function tone(f, d, type = 'square', vol = 0.18, slide = 0) {
@@ -1066,6 +1084,26 @@ function tone(f, d, type = 'square', vol = 0.18, slide = 0) {
   o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
   o.connect(g); g.connect(master); o.start(t); o.stop(t + d + 0.02);
+}
+
+/* Música de fondo: melodía suave y repetitiva, generada aquí mismo (sin ficheros
+   externos), tranquila para no tapar los efectos ni la voz de las actividades. */
+let musicTimer = null;
+function startMusic() {
+  if (musicTimer || !AC) return;
+  const BEAT = 0.62;
+  const MELODY = [523.25, 587.33, 659.25, 587.33, 523.25, 440.00, 523.25, null,
+                  587.33, 659.25, 783.99, 659.25, 587.33, 523.25, 440.00, null];
+  const BASS = [130.81, 174.61];
+  let step = 0;
+  const playStep = () => {
+    const note = MELODY[step % MELODY.length];
+    if (note) tone(note, BEAT * 0.92, 'sine', 0.045);
+    if (step % 8 === 0) tone(BASS[(step / 8) % BASS.length], BEAT * 3.6, 'sine', 0.035);
+    step++;
+  };
+  playStep();
+  musicTimer = setInterval(playStep, BEAT * 1000);
 }
 const sfx = {
   count: () => tone(440, 0.25), go: () => tone(880, 0.6),
