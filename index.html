@@ -106,6 +106,7 @@
   .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .seg.five{grid-template-columns:repeat(3,1fr)}
   .seg.five button{font-size:12px;padding:9px 0}
+  .actBox{border:2px solid var(--sun);border-radius:12px;padding:10px;background:rgba(255,210,63,.08)}
   .toggles{display:flex;gap:10px;flex-wrap:wrap}
   .toggles .ghost{flex:1;padding:8px;font-size:13px}
   .quest{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%);pointer-events:auto;cursor:pointer;
@@ -193,8 +194,11 @@
       </div>
       <div class="label">Tu piloto</div>
       <div class="chars" id="chars"></div>
-      <div class="label">Actividad</div>
-      <div class="seg five" id="acts"></div>
+      <div class="actBox">
+        <div class="label" style="color:var(--sun)">🗣️ Actividad de logopedia</div>
+        <p class="help" style="margin:2px 0 8px">Elige una para que el juego hable y pida letras, sílabas o palabras. "Libre" es la carrera clásica, sin lenguaje.</p>
+        <div class="seg five" id="acts"></div>
+      </div>
       <div id="pairBox" hidden>
         <div class="label">Pareja de letras</div>
         <div class="pairs" id="pairs"></div>
@@ -280,12 +284,12 @@ const PALABRAS = [
   ['MESA', '🪑'], ['MARIPOSA', '🦋'],
 ];
 const ACTS = [
-  { id: 'libre',    name: 'Libre',    help: 'Carrera normal: las cajas dan objetos al azar.' },
+  { id: 'palabras', name: 'Palabras', ask: '¿Cómo se llama?',  help: 'Arriba sale un dibujo. Pasa por la caja con su nombre escrito.' },
   { id: 'letras',   name: 'Letras',   ask: 'Busca la letra',   help: 'Arriba sale una letra. Pasa por la caja que la tenga.' },
   { id: 'silabas',  name: 'Sílabas',  ask: 'Busca la sílaba',  help: 'Arriba sale una sílaba. Los distractores comparten consonante o vocal con ella.' },
-  { id: 'palabras', name: 'Palabras', ask: '¿Cómo se llama?',  help: 'Arriba sale un dibujo. Pasa por la caja con su nombre escrito.' },
   { id: 'imagenes', name: 'Imágenes', ask: 'Busca el dibujo',  help: 'Arriba sale una palabra escrita (y se oye). Pasa por la caja con su dibujo.' },
   { id: 'espejo',   name: 'Letras espejo', ask: 'Busca la',   help: 'Dislexia: en cada fila hay una caja con la letra buena (súper turbo), una con la letra que se confunde (frenazo) y dos cajas ? con premios normales.' },
+  { id: 'libre',    name: 'Libre',    help: 'Carrera normal, sin actividad de logopedia: las cajas dan objetos al azar.' },
 ];
 const PAIRS = [['p', 'd'], ['b', 'd'], ['p', 'q'], ['p', 'b'], ['d', 'q'], ['m', 'n'], ['n', 'u']];
 const PILOTS = [
@@ -816,7 +820,7 @@ function say(text) {
 }
 
 /* ---------- Estado de carrera ---------- */
-let activity = store.get('act', 'libre'); if (!ACTS.some(a => a.id === activity)) activity = 'libre';
+let activity = store.get('act', 'palabras'); if (!ACTS.some(a => a.id === activity)) activity = 'palabras';
 let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = store.get('diff', 1);
 let muted = store.get('muted', false), finishT = 0, boardT = 0, lastLapShown = 0;
 const input = { left: false, right: false, gas: false, brake: false, drift: false, item: false };
