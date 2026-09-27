@@ -969,7 +969,7 @@ function updateTrack(k) {
   if (Math.abs(k.lat) > WALL) {
     const s = Math.sign(k.lat), push = k.lat - s * WALL;
     k.pos.x -= n.x * push; k.pos.z -= n.z * push; k.lat = s * WALL;
-    const th = headingAt(best); k.h += wrapA(th - k.h) * 0.12; k.speed *= 0.96;
+    const th = headingAt(best); k.h += wrapA(th - k.h) * 0.35; k.speed *= 0.8;
   }
 }
 
@@ -1342,8 +1342,8 @@ function frame(now) {
 
   // Cámara de persecución
   camH += wrapA(player.h - camH) * Math.min(1, dt * 5.5);
-  const back = 10.5, fwdx = Math.sin(camH), fwdz = Math.cos(camH);
-  const want = new V3(player.pos.x - fwdx * back, 4.8, player.pos.z - fwdz * back);
+  const back = 12, fwdx = Math.sin(camH), fwdz = Math.cos(camH);
+  const want = new V3(player.pos.x - fwdx * back, 5.4, player.pos.z - fwdz * back);
   camera.position.lerp(want, Math.min(1, dt * 9));
   camera.lookAt(player.pos.x + Math.sin(player.h) * 7, 1.8, player.pos.z + Math.cos(player.h) * 7);
   const baseFov = camera.aspect < 1 ? 86 : 70;
