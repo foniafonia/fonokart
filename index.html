@@ -21,7 +21,7 @@
     --body:"Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   [hidden]{display:none!important}
-  html,body{height:100%;margin:0;overflow:hidden;background:var(--ink);color:var(--cream);font-family:var(--body);}
+  html,body{height:100%;margin:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--ink);color:var(--cream);font-family:var(--body);}
   body{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;}
   #c{position:fixed;inset:0;width:100%;height:100%;display:block;}
 
@@ -1565,6 +1565,15 @@ function enableTouch() {
 }
 if (window.matchMedia && matchMedia('(pointer:coarse)').matches) enableTouch();
 addEventListener('touchstart', enableTouch, { passive: true });
+// iOS ignora user-scalable=no: bloquea el zoom de página por pellizco o doble toque
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 400 && !e.target.closest('input, textarea, select')) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
 function hold(id, key) {
   const el = $(id);
   const on = e => { e.preventDefault(); input[key] = true; el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch (_) {} };
