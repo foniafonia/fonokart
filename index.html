@@ -254,9 +254,12 @@
       <div class="row"><button class="ghost" id="restartBtn">Repetir carrera</button><button class="ghost" id="quitBtn">Menú</button></div>
       <div class="toggles" id="tiltOpts"><button class="ghost" id="recalBtn">Recalibrar el móvil</button><button class="ghost" id="invSBtn">Invertir giro</button><button class="ghost" id="invPBtn">Invertir adelante/atrás</button></div>
       <div class="toggles"><button class="ghost" id="muteBtn">Sonido: sí</button><button class="ghost" id="voiceBtn2">Voz: sí</button></div>
+      <div class="toggles"><button class="ghost" id="heatBtn">🔥 Ver mapa de calor</button><button class="ghost" id="heatClearBtn">🗑️ Borrar mapa</button></div>
     </div>
   </div>
 </div>
+
+<canvas id="heatCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none;display:none"></canvas>
 
 <div class="overlay" id="results" hidden>
   <div class="card"><div class="checker"></div>
@@ -1509,6 +1512,38 @@ $('restartBtn').onclick = reallyStartRace; $('resumeBtn').onclick = () => setPau
 $('pauseBtn').onclick = () => setPause(true);
 $('muteBtn').onclick = () => { initAudio(); setMuted(!muted); };
 setMuted(muted);
+
+/* ---------- Mapa de calor: dónde toca el niño la pantalla ---------- */
+let heatPoints = store.get('heat', []);
+addEventListener('pointerdown', e => {
+  heatPoints.push([e.clientX / innerWidth, e.clientY / innerHeight]);
+  if (heatPoints.length > 4000) heatPoints.shift();
+  store.set('heat', heatPoints);
+}, { passive: true, capture: true });
+let heatOn = false;
+function drawHeat() {
+  const cv = $('heatCanvas'), ctx = cv.getContext('2d');
+  cv.width = innerWidth; cv.height = innerHeight;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.globalCompositeOperation = 'lighter';
+  for (const [fx, fy] of heatPoints) {
+    const x = fx * cv.width, y = fy * cv.height, r = Math.min(cv.width, cv.height) * 0.06;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(255,60,0,.22)'); g.addColorStop(1, 'rgba(255,60,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#fff'; ctx.font = '800 13px sans-serif';
+  ctx.fillText(heatPoints.length + ' toques registrados', 10, 20);
+}
+$('heatBtn').onclick = () => {
+  heatOn = !heatOn;
+  $('heatCanvas').style.display = heatOn ? 'block' : 'none';
+  $('heatBtn').textContent = heatOn ? '🔥 Ocultar mapa de calor' : '🔥 Ver mapa de calor';
+  if (heatOn) drawHeat();
+};
+$('heatClearBtn').onclick = () => { heatPoints = []; store.set('heat', heatPoints); if (heatOn) drawHeat(); };
+addEventListener('resize', () => { if (heatOn) drawHeat(); });
 
 // Teclado
 const KEYS = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'gas', KeyW: 'gas', ArrowDown: 'brake', KeyS: 'brake', Space: 'drift', ShiftLeft: 'drift', ShiftRight: 'drift' };
