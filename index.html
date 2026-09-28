@@ -1594,6 +1594,8 @@ addEventListener('resize', resize); resize();
 resetRace();
 $('loading').hidden = true; $('menu').hidden = false;
 requestAnimationFrame(t => { last = t; frame(t); });
+// Contador de visitas anónimo (sin cuentas, sin cookies, solo suma 1 por apertura del juego)
+if (window.fetch) fetch('https://abacus.jasoncameron.dev/hit/foniafonia-juegos/fonokart_aperturas').catch(() => {});
 })();
 </script>
 </body>
