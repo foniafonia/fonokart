@@ -922,6 +922,13 @@ function say(text) {
 
 /* ---------- Estado de carrera ---------- */
 let activity = store.get('act', 'palabras'); if (!ACTS.some(a => a.id === activity)) activity = 'palabras';
+/* Gabinete Fönia: el enlace de la ficha puede traer el caso (?caso=), la
+   logopeda (?t=), la actividad (?act=) y el espacio al que volver (?volver=). */
+const FQ = (() => { try { return new URLSearchParams(location.search); } catch (e) { return { get: () => null }; } })();
+const CASO = (() => { const v = (FQ.get('caso') || '').toLowerCase().trim(); return /^[0a-i]{1,24}$/.test(v) ? v : ''; })();
+const TERAPEUTA = (() => { const v = (FQ.get('t') || '').trim(); return /^[A-Za-zÀ-ÿ .'-]{2,40}$/.test(v) ? v : ''; })();
+const VOLVER = (() => { const m = /^([A-Za-z0-9]{24})\.([A-Za-z0-9_-]{43})$/.exec(FQ.get('volver') || ''); return m ? 'https://fonia-materiales.vercel.app/tratamiento/#t=' + m[1] + '&k=' + m[2] : ''; })();
+(() => { const a = (FQ.get('act') || '').toLowerCase(); if (ACTS.some(x => x.id === a)) activity = a; })();
 let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = store.get('diff', 1);
 let muted = store.get('muted', false), finishT = 0, boardT = 0, lastLapShown = 0;
 const input = { left: false, right: false, gas: false, brake: false, drift: false, item: false };
@@ -1358,6 +1365,56 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+/* ---------- Envío al Gabinete Fönia (mismo circuito que el resto de materiales) ---------- */
+const FONIA = { panel: 'https://script.google.com/macros/s/AKfycbw3rqxu2yEeF8lxhl8plc3rgdinbzTyEMuESPt9AwbM40mre6vlGzfYcRNVSG_VwyTW/exec',
+  registro: 'https://fonia-buzon.vercel.app/api/registro', version: '1.0.0', material: 'FonoKart', slug: 'fonokart' };
+const FONIA_COLA = 'fonia-cola-' + FONIA.slug;
+function _dos(n) { return ('0' + n).slice(-2); }
+function foniaMomento() { const d = new Date(); return _dos(d.getDate()) + '/' + _dos(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + _dos(d.getHours()) + ':' + _dos(d.getMinutes()); }
+function foniaTexto(filas) {
+  const fila = p => '  ' + p[0] + ' ' + new Array(Math.max(2, 24 - p[0].length) + 1).join('.') + ' ' + p[1];
+  return 'GABINETE FÖNIA · REGISTRO DE FAMILIA\n========================================\n' +
+    fila(['Caso', CASO]) + '\n' + fila(['Logopeda', TERAPEUTA || 'sin asignar']) + '\n' + fila(['Material', FONIA.material]) + '\n' + fila(['Enviado', foniaMomento()]) + '\n\n' +
+    'LO QUE HAN HECHO\n' + filas.map(fila).join('\n') + '\n\nSin datos identificativos: este registro se identifica solo por el código de caso.';
+}
+function foniaId() { return 'c' + CASO + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6); }
+function foniaCola() { try { return JSON.parse(localStorage.getItem(FONIA_COLA) || '[]'); } catch (e) { return []; } }
+function foniaGuarda(reg) { try { const c = foniaCola(); c.push(reg); localStorage.setItem(FONIA_COLA, JSON.stringify(c.slice(-20))); } catch (e) {} }
+function foniaAlPanel(reg) { try { fetch(FONIA.panel, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ id: reg.id, caso: reg.caso, terapeuta: reg.terapeuta, material: FONIA.slug, contenido: reg.texto, version: FONIA.version }) }).catch(() => {}); } catch (e) {} }
+async function foniaAlRegistro(reg) { const r = await fetch(FONIA.registro, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: reg.id, caso: reg.caso, terapeuta: reg.terapeuta, material: FONIA.slug, contenido: reg.texto, version: FONIA.version }) }); if (!r.ok) throw new Error('registro ' + r.status); }
+async function foniaManda(reg) { foniaAlPanel(reg); await foniaAlRegistro(reg); }
+async function foniaRevisaCola() {
+  const c = foniaCola(); if (!c.length) return;
+  let quedan = c.slice();
+  for (const reg of c) { try { await foniaManda(reg); quedan = quedan.filter(x => x.id !== reg.id); } catch (e) { break; } }
+  try { if (quedan.length) localStorage.setItem(FONIA_COLA, JSON.stringify(quedan)); else localStorage.removeItem(FONIA_COLA); } catch (e) {}
+}
+if (CASO) foniaRevisaCola();
+/* Qué se manda al acabar una carrera. Devuelve las filas (se prueba aparte). */
+function foniaFilas(puesto) {
+  const act = ACTS.find(a => a.id === activity), filas = [['Actividad', act.name], ['Puesto', puesto + 'º de ' + karts.length], ['Rivales', ['Tranquilos', 'Normales', 'Rápidos'][diff] || String(diff)]];
+  let pct, cuesta = '';
+  if (activity === 'espejo') {
+    const par = curPair(), n = role => stats.filter(x => x.role === role).length, buena = n('target'), mala = n('confuse');
+    filas.push(['Letras', par[0] + ' / ' + par[1]], ['Cogió la buena', String(buena)], ['Cogió la que confunde', String(mala)], ['Filas sin caja', String(stats.filter(x => !x.chosen).length)]);
+    pct = buena + mala ? Math.round(buena / (buena + mala) * 100) : 0;
+    if (mala) cuesta = 'confunde ' + par[0] + ' con ' + par[1];
+  } else {
+    const ok = stats.filter(x => x.ok).length, mal = stats.filter(x => x.chosen && !x.ok), sin = stats.filter(x => !x.chosen).length;
+    filas.push(['Aciertos', ok + ' de ' + stats.length], ['Fallos', String(mal.length)], ['Sin responder', String(sin)]);
+    pct = stats.length ? Math.round(ok / stats.length * 100) : 0;
+    if (mal.length) { const vistos = []; mal.forEach(x => { const t = String(x.task.answer); if (vistos.indexOf(t) < 0) vistos.push(t); }); cuesta = vistos.slice(0, 6).join(', '); filas.push(['Falló al buscar', cuesta]); }
+  }
+  filas.push(['Fönia · Cómo va', pct >= 80 ? 'bien' : pct >= 50 ? 'regular' : 'le cuesta'], ['Fönia · Qué le cuesta', cuesta || '—'],
+    ['Fönia · Qué toca ahora', pct >= 80 ? 'seguir con «' + act.name + '» o poner rivales más rápidos' : pct >= 50 ? 'seguir con «' + act.name + '»' : 'repetir «' + act.name + '» con rivales tranquilos']);
+  return filas;
+}
+function foniaEnviaCarrera(puesto) {
+  if (!CASO || activity === 'libre' || !stats.length) return;
+  const reg = { id: foniaId(), caso: CASO, terapeuta: TERAPEUTA, texto: foniaTexto(foniaFilas(puesto)) };
+  foniaManda(reg).catch(() => foniaGuarda(reg));
+}
+
 /* ---------- Pantallas ---------- */
 function showResults() {
   state = 'done';
@@ -1389,6 +1446,8 @@ function showResults() {
     lr.hidden = false;
   } else lr.hidden = true;
   $('resTable').innerHTML = rows.map(({ k, t, i }) => `<tr class="${k.isPlayer ? 'me' : ''}"><td>${i + 1}º</td><td><span class="dot" style="background:${k.color}"></span>${k.name}${k.isPlayer ? ' (tú)' : ''}</td><td>${fmt(t)}</td></tr>`).join('');
+  foniaEnviaCarrera(p);
+  if (VOLVER && !$('foniaVolver')) { const a = document.createElement('a'); a.id = 'foniaVolver'; a.href = VOLVER; a.textContent = '🏠 Volver a mi plan'; a.style.cssText = 'display:block;margin:10px auto 0;text-align:center;font-weight:700;color:inherit'; $('learnRes').parentNode.appendChild(a); }
   $('results').hidden = false; $('hud').hidden = true;
 }
 function startRace() {
