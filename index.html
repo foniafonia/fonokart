@@ -1675,6 +1675,23 @@ document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preve
   }
   vv.addEventListener('resize', deshaceZoom); vv.addEventListener('scroll', deshaceZoom);
   addEventListener('orientationchange', () => setTimeout(deshaceZoom, 300));
+  /* 3) 06/10, por la tarde: en el iPad de José el paso 2 no bastó («se pone grande y hay que
+     reiniciar»). Si Safari no vuelve a escala 1, se compensa por dentro: todo el juego se encoge
+     lo mismo que Safari lo ha ampliado y se coloca en la parte que se ve. La página sigue
+     ampliada, pero el juego se ve y se toca como siempre, sin recargar. */
+  const cuerpo = document.body;
+  function compensa() {
+    const s = vv.scale || 1;
+    if (Math.abs(s - 1) < 0.02 && vv.offsetLeft < 2 && vv.offsetTop < 2) {
+      if (cuerpo.style.transform) { cuerpo.style.transform = ''; cuerpo.style.transformOrigin = ''; }
+      return;
+    }
+    cuerpo.style.transformOrigin = '0 0';
+    cuerpo.style.transform = 'translate(' + vv.offsetLeft + 'px,' + vv.offsetTop + 'px) scale(' + (1 / s) + ')';
+  }
+  vv.addEventListener('resize', compensa); vv.addEventListener('scroll', compensa);
+  addEventListener('orientationchange', () => setTimeout(compensa, 400));
+  setInterval(compensa, 700);   // por si el aparato no avisa del cambio
 })();
 document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
 let lastTouchEnd = 0;
