@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
 <title>FonoKart Rally</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -219,10 +219,12 @@
         <button class="ghost" id="swapBtn">Buscas P · evitas D ⇄</button>
       </div>
       <div class="label">Rivales</div>
-      <div class="seg" id="diff">
+      <div class="seg five" id="diff">
         <button data-d="0" aria-pressed="false">Tranquilos</button>
         <button data-d="1" aria-pressed="true">Normales</button>
         <button data-d="2" aria-pressed="false">Rápidos</button>
+        <button data-d="3" aria-pressed="false">Expertos</button>
+        <button data-d="4" aria-pressed="false">Campeones</button>
       </div>
       <div class="toggles"><button class="ghost touchonly" id="controlBtn">Control: inclinar el móvil</button><button class="ghost touchonly" id="gasBtn">Acelerar: inclinando</button><button class="ghost" id="assistBtn">Ayuda al volante: sí</button></div>
       <div class="toggles"><button class="ghost" id="voiceBtn">Voz: sí</button><button class="ghost" id="caseBtn">Letra: MAYÚSCULA</button></div>
@@ -334,7 +336,14 @@ const PILOTS = [
   { name: 'Luna',  color: '#8338ec', helmet: '#ffd23f' },
   { name: 'Bruno', color: '#6a994e', helmet: '#fff8e7' },
 ];
-const DIFF = [0.84, 0.92, 0.99];              // velocidad base de los rivales
+const DIFF = [0.84, 0.92, 0.99, 1.03, 1.08];  // velocidad base de los rivales
+const DIFF_NOMBRE = ['Tranquilos', 'Normales', 'Rápidos', 'Expertos', 'Campeones'];
+/* Expertos y Campeones (06/10/2026): un niño sin más dificultad que la del
+   habla ganaba siempre, incluso con «Rápidos». El motivo: su kart mejora hasta
+   un 16 % al desbloquear los buenos y los rivales no. En estos dos niveles los
+   rivales corren respecto al kart que lleve el jugador, y fallar una caja frena
+   más: para ganar hay que acertar y derrapar. */
+const DIFF_DURO = 3;
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -856,7 +865,7 @@ function answer(r, b) {
     if (!player.item && player.rolling <= 0) { player.rolling = 0.8; player.pending = pickItem(); renderItem(); }
     sfx.ok(); showMsg('¡BIEN!', 1); flashQuest('ok');
   } else {
-    player.speed *= 0.55;
+    player.speed *= diff >= DIFF_DURO ? 0.3 : 0.55; if (diff >= DIFF_DURO) player.boost = 0;
     sfx.no(); flashQuest('no');
   }
 }
@@ -893,21 +902,34 @@ function updateRows(dt) {
     } else { q.classList.add('idle'); }
   }
 }
-// Voz: primero el clip de FonoMundos (Piper es_ES-sharvard-medium, CC-BY 3.0,
-// suena igual en todos los dispositivos); si el texto no tiene clip, se cae al
-// sintetizador del navegador para no quedarse mudo.
+// Voz: clips de Piper (es_ES-sharvard-medium, CC-BY 3.0), que suenan igual en
+// todos los dispositivos. Desde el 06/10/2026 TODO lo que dice el juego tiene
+// clip (voz/generar.py): palabras, letras, sílabas y las frases de «Letras
+// espejo». El sintetizador del navegador queda solo como último recurso, por
+// si algún día se añade un texto sin regenerar los clips.
 let voiceOn = store.get('voice', true), lower = store.get('lower', false), esVoice = null;
-const VOZ_CLIPS = { sol:'sol', gato:'gato', perro:'perro', rana:'rana', coche:'coche', pelota:'pelota',
-  'árbol':'arbol', 'limón':'limon', pan:'pan', queso:'queso', llave:'llave', 'ratón':'raton', tomate:'tomate',
-  estrella:'estrella', cama:'cama', zapato:'zapato', nariz:'nariz', paraguas:'paraguas', mariposa:'mariposa',
-  a:'a', e:'e', i:'i', o:'o', u:'u', la:'la', es:'es', hola:'hola' };
-let vozAudio = null;
+/*VOZ_CLIPS:inicio — generado por voz/generar.py, no editar a mano*/
+const VOZ_CLIPS = {"a": "a", "b": "letra-b", "ba": "sil-ba", "barco": "barco", "be": "sil-be", "bebé": "bebe", "bi": "sil-bi", "bici": "bici", "bo": "sil-bo", "bosque": "bosque", "bota": "bota", "brazo": "brazo", "bu": "sil-bu", "búho": "buho", "c": "letra-c", "ca": "sil-ca", "cama": "cama", "casa": "casa", "cerdo": "cerdo", "co": "sil-co", "coche": "coche", "cu": "sil-cu", "d": "letra-d", "da": "sil-da", "dado": "dado", "de": "sil-de", "dedo": "dedo", "delfín": "delfin", "di": "sil-di", "diente": "diente", "do": "sil-do", "du": "sil-du", "e": "e", "esa es la b": "esa-b", "esa es la d": "esa-d", "esa es la m": "esa-m", "esa es la n": "esa-n", "esa es la p": "esa-p", "esa es la q": "esa-q", "esa es la u": "esa-u", "estrella": "estrella", "f": "letra-f", "fa": "sil-fa", "fe": "sil-fe", "fi": "sil-fi", "flor": "flor", "fo": "sil-fo", "fu": "sil-fu", "fuego": "fuego", "g": "letra-g", "ga": "sil-ga", "gato": "gato", "globo": "globo", "go": "sil-go", "gu": "sil-gu", "hola": "hola", "i": "i", "l": "letra-l", "la": "la", "le": "sil-le", "león": "leon", "li": "sil-li", "libro": "libro", "limón": "limon", "llave": "llave", "lo": "sil-lo", "lu": "sil-lu", "luna": "luna", "m": "letra-m", "ma": "sil-ma", "mano": "mano", "mariposa": "mariposa", "me": "sil-me", "mesa": "mesa", "mi": "sil-mi", "mo": "sil-mo", "mono": "mono", "mu": "sil-mu", "muy bien, la b": "bien-b", "muy bien, la d": "bien-d", "muy bien, la m": "bien-m", "muy bien, la n": "bien-n", "muy bien, la p": "bien-p", "muy bien, la q": "bien-q", "muy bien, la u": "bien-u", "n": "letra-n", "na": "sil-na", "naranja": "naranja", "nariz": "nariz", "ne": "sil-ne", "ni": "sil-ni", "nido": "nido", "no": "sil-no", "nu": "sil-nu", "nube": "nube", "o": "o", "oso": "oso", "p": "letra-p", "pa": "sil-pa", "pan": "pan", "paraguas": "paraguas", "pato": "pato", "pe": "sil-pe", "pelota": "pelota", "pera": "pera", "perro": "perro", "pez": "pez", "pi": "sil-pi", "pie": "pie", "pintura": "pintura", "pizza": "pizza", "piña": "pina", "po": "sil-po", "pollo": "pollo", "pu": "sil-pu", "q": "letra-q", "queso": "queso", "r": "letra-r", "ra": "sil-ra", "rana": "rana", "ratón": "raton", "re": "sil-re", "ri": "sil-ri", "ro": "sil-ro", "ru": "sil-ru", "s": "letra-s", "sa": "sil-sa", "se": "sil-se", "seta": "seta", "si": "sil-si", "so": "sil-so", "sol": "sol", "su": "sil-su", "t": "letra-t", "ta": "sil-ta", "taza": "taza", "te": "sil-te", "ti": "sil-ti", "to": "sil-to", "tomate": "tomate", "tren": "tren", "tu": "sil-tu", "u": "u", "uvas": "uvas", "vaca": "vaca", "zapato": "zapato", "árbol": "arbol"};
+/*VOZ_CLIPS:fin*/
+// Un solo reproductor para toda la partida. En iPad, Safari solo deja sonar un
+// audio que nace de un toque: crear uno nuevo en mitad de la carrera (cuando
+// aparece la fila de cajas, no cuando se toca) lo dejaba mudo. Este se
+// desbloquea con el primer toque y se reutiliza.
+const vozAudio = new Audio(); vozAudio.preload = 'auto';
+let vozLista = false;
+function desbloqueaVoz() {
+  if (vozLista) return; vozLista = true;
+  try { vozAudio.src = 'voz/hola.mp3'; vozAudio.muted = true; const p = vozAudio.play();
+    // si mientras tanto ya ha empezado a decir algo (sayClip quita el silencio), no se corta
+    const fin = () => { if (!vozAudio.muted) return; try { vozAudio.pause(); } catch (e) {} vozAudio.muted = false; };
+    if (p && p.then) p.then(fin, () => { vozAudio.muted = false; vozLista = false; }); else fin();
+  } catch (e) { vozLista = false; }
+}
+['touchend', 'pointerup', 'keydown'].forEach(t => document.addEventListener(t, desbloqueaVoz, true));
 function sayClip(text) {
   const name = VOZ_CLIPS[text.trim().toLowerCase()];
   if (!name) return false;
-  if (vozAudio) { vozAudio.pause(); vozAudio.currentTime = 0; }
-  vozAudio = new Audio('voz/' + name + '.mp3');
-  vozAudio.play().catch(() => {});
+  try { vozAudio.pause(); vozAudio.muted = false; vozAudio.src = 'voz/' + name + '.mp3'; const p = vozAudio.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
   return true;
 }
 function say(text) {
@@ -931,7 +953,7 @@ const CASO = (() => { const v = (FQ.get('caso') || '').toLowerCase().trim(); ret
 const TERAPEUTA = (() => { const v = (FQ.get('t') || '').trim(); return /^[A-Za-zÀ-ÿ .'-]{2,40}$/.test(v) ? v : ''; })();
 const VOLVER = (() => { const m = /^([A-Za-z0-9]{24})\.([A-Za-z0-9_-]{43})$/.exec(FQ.get('volver') || ''); return m ? 'https://fonia-materiales.vercel.app/tratamiento/#t=' + m[1] + '&k=' + m[2] : ''; })();
 (() => { const a = (FQ.get('act') || '').toLowerCase(); if (ACTS.some(x => x.id === a)) activity = a; })();
-let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = store.get('diff', 1);
+let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = clamp(store.get('diff', 1) | 0, 0, 4);
 let muted = store.get('muted', false), finishT = 0, boardT = 0, lastLapShown = 0;
 const input = { left: false, right: false, gas: false, brake: false, drift: false, item: false };
 let touchMode = false;
@@ -953,7 +975,8 @@ function resetRace() {
     k.pos.copy(at(k.idx, k.lat)); k.h = headingAt(k.idx);
     Object.assign(k, { speed: 0, lap: -1, prog: 0, drifting: false, charge: 0, boost: 0, spin: 0, hop: 0, item: null, rolling: 0, finished: false, time: 0, lane: k.lat, laneTarget: k.lat, laneT: rnd(1, 3), itemT: 0, invincible: 0 });
     k.isPlayer = k === player;
-    k.base = k.isPlayer ? (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult : DIFF[diff] + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
+    const multJugador = (KART_TIERS.find(t => t.id === kartTierId) || KART_TIERS[0]).mult;
+    k.base = k.isPlayer ? multJugador : DIFF[diff] + (diff >= DIFF_DURO ? multJugador - 1 : 0) + rnd(-0.03, 0.03) + (slot < 4 ? 0.015 : 0);
     k.skill = k.base;
     updateTrack(k); k.prog = -1 * N + k.idx;
     syncMesh(k, 0);
@@ -1396,7 +1419,7 @@ async function foniaRevisaCola() {
 if (CASO) foniaRevisaCola();
 /* Qué se manda al acabar una carrera. Devuelve las filas (se prueba aparte). */
 function foniaFilas(puesto) {
-  const act = ACTS.find(a => a.id === activity), filas = [['Actividad', act.name], ['Puesto', puesto + 'º de ' + karts.length], ['Rivales', ['Tranquilos', 'Normales', 'Rápidos'][diff] || String(diff)]];
+  const act = ACTS.find(a => a.id === activity), filas = [['Actividad', act.name], ['Puesto', puesto + 'º de ' + karts.length], ['Rivales', DIFF_NOMBRE[diff] || String(diff)]];
   let pct, cuesta = '';
   if (activity === 'espejo') {
     const par = curPair(), n = role => stats.filter(x => x.role === role).length, buena = n('target'), mala = n('confuse');
@@ -1632,6 +1655,27 @@ if (window.matchMedia && matchMedia('(pointer:coarse)').matches) enableTouch();
 addEventListener('touchstart', enableTouch, { passive: true });
 // iOS ignora user-scalable=no: bloquea el zoom de página por pellizco o doble toque
 ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+// 06/10/2026, iPad: «cuando manipula el iPad se hace enorme y no se puede jugar».
+// 1) Con dos dedos (uno en ◀▶ y otro en DERRAPE es lo normal al jugar), Safari
+//    empieza el pellizco en el touchstart: cortarlo en touchmove llega tarde.
+document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+// 2) Si aun así la página se amplía (también pasa al girar la tableta), se
+//    deshace sola: reescribir el viewport obliga a Safari a volver a escala 1.
+(function () {
+  const vv = window.visualViewport, meta = document.querySelector('meta[name=viewport]');
+  if (!vv || !meta) return;
+  const BUENO = meta.getAttribute('content'); let pendiente = 0;
+  function deshaceZoom() {
+    if (Math.abs(vv.scale - 1) < 0.02 && vv.offsetLeft < 2 && vv.offsetTop < 2) return;
+    clearTimeout(pendiente);
+    pendiente = setTimeout(() => {
+      meta.setAttribute('content', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no');
+      requestAnimationFrame(() => { meta.setAttribute('content', BUENO); window.scrollTo(0, 0); });
+    }, 120);
+  }
+  vv.addEventListener('resize', deshaceZoom); vv.addEventListener('scroll', deshaceZoom);
+  addEventListener('orientationchange', () => setTimeout(deshaceZoom, 300));
+})();
 document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
 let lastTouchEnd = 0;
 document.addEventListener('touchend', e => {
