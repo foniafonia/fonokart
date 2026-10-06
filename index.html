@@ -23,10 +23,10 @@
   [hidden]{display:none!important}
   html,body{height:100%;margin:0;overflow:hidden;touch-action:none;overscroll-behavior:none;background:var(--ink);color:var(--cream);font-family:var(--body);}
   body{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;}
-  #c{position:fixed;inset:0;width:100%;height:100%;display:block;}
+  #c{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;width:100%;height:100%;display:block;}
 
   /* ---------- HUD ---------- */
-  .hud{position:fixed;inset:0;pointer-events:none;
+  .hud{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;pointer-events:none;
     padding:calc(env(safe-area-inset-top,0px) + 12px) calc(env(safe-area-inset-right,0px) + 16px) calc(env(safe-area-inset-bottom,0px) + 12px) calc(env(safe-area-inset-left,0px) + 16px);}
   .big{font-family:var(--display);color:#fff;letter-spacing:.02em;
     text-shadow:0 3px 0 var(--ink),2px 0 0 var(--ink),-2px 0 0 var(--ink),0 -2px 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink);}
@@ -72,7 +72,7 @@
   .right .small{width:62px;height:62px;font-size:11px}
 
   /* ---------- Overlays ---------- */
-  .overlay{position:fixed;inset:0;display:grid;overflow:auto;
+  .overlay{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;display:grid;overflow:auto;
     padding:calc(env(safe-area-inset-top,0px) + 16px) 16px calc(env(safe-area-inset-bottom,0px) + 16px);
     background:linear-gradient(180deg,rgba(22,25,58,.15),rgba(22,25,58,.7));}
   .card{margin:auto;width:100%;max-width:460px;background:var(--ink);border-radius:18px;overflow:hidden;box-shadow:0 10px 0 rgba(0,0,0,.35);border:3px solid var(--cream)}
@@ -129,7 +129,9 @@
   @media (max-aspect-ratio:1/1){body.learn .msg{top:48%}}
   #tFire{display:none;width:96px;height:96px;background:rgba(31,111,209,.6);font-size:12px}
   body.tilt #tFire{display:grid}
-  body.tilt #tLeft, body.tilt #tRight, body.tilt #tBrake, body.tilt #tItem{display:none}
+  /* inclinando, las flechas y el freno siguen a la vista: en un iPad inclinar cuesta y, si el sensor
+     no responde, no puede quedarse sin forma de girar. La flecha manda sobre la inclinación. */
+  body.tilt #tItem{display:none}
   .tiltm{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);width:150px;height:16px;border-radius:8px;
     background:rgba(22,25,58,.55);border:2px solid rgba(255,248,231,.8);display:none}
   body.tilt .tiltm{display:block}
@@ -259,7 +261,7 @@
   </div>
 </div>
 
-<canvas id="heatCanvas" style="position:fixed;inset:0;z-index:999;pointer-events:none;display:none"></canvas>
+<canvas id="heatCanvas" style="position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:999;pointer-events:none;display:none"></canvas>
 
 <div class="overlay" id="results" hidden>
   <div class="card"><div class="checker"></div>
@@ -1069,7 +1071,9 @@ function playerControl() {
 }
 
 /* ---------- Sensor de movimiento ---------- */
-let control = store.get('control', 'tilt'), autoGas = store.get('autogas', true), assist = store.get('assist', true);
+/* en una tableta (lado corto de 600 px o más) lo cómodo son los botones; en el móvil, inclinar */
+const ES_TABLETA = Math.min(screen.width || 0, screen.height || 0) >= 600;
+let control = store.get('control', ES_TABLETA ? 'buttons' : 'tilt'), autoGas = store.get('autogas', true), assist = store.get('assist', true);
 let invSteer = store.get('invS', false), invPitch = store.get('invP', false), tiltFailed = false;
 const tilt = { live: false, got: false, sx: 0, sy: 0, sz: 0, steer: 0, pitch: 0, n0: null };
 const tiltOn = () => touchMode && control === 'tilt' && !tiltFailed;
@@ -1566,6 +1570,8 @@ renderToggles();
 $('goBtn').onclick = startRace; $('againBtn').onclick = reallyStartRace;
 $('ccTilt').onclick = () => { control = 'tilt'; store.set('control', control); renderControlToggles(); applyControlClass(); reallyStartRace(); };
 $('ccButtons').onclick = () => { control = 'buttons'; store.set('control', control); renderControlToggles(); applyControlClass(); reallyStartRace(); };
+/* en tableta, los botones primero y sin hablar de «móvil» */
+if (ES_TABLETA) { $('ccButtons').parentNode.insertBefore($('ccButtons'), $('ccTilt')); $('ccTilt').textContent = '📱 Inclinando la tableta'; }
 $('menuBtn').onclick = toMenu; $('quitBtn').onclick = toMenu;
 $('restartBtn').onclick = reallyStartRace; $('resumeBtn').onclick = () => setPause(false);
 $('pauseBtn').onclick = () => setPause(true);
