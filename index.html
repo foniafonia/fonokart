@@ -455,12 +455,16 @@ function noPuedeAbrir(porque) {
   document.body.appendChild(d);
 }
 let renderer;
-try { renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true, powerPreference: 'high-performance' }); }
+/* 13/10/2026, «la pantalla parpadea» (familia, tablet): en pantallas de mucha densidad el antialias de varias muestras a esa resolución
+   satura las GPU de tablets baratas y el dibujo se rompe a ratos. Con densidad alta se dibuja sin él (a esa densidad no se nota). */
+try { renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: (window.devicePixelRatio || 1) < 2, powerPreference: 'high-performance' }); }
 catch (e) { noPuedeAbrir('El navegador no ha podido encender los gráficos en 3D (WebGL). Suele pasar en ordenadores antiguos o con la aceleración gráfica desactivada.'); throw e; }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+/* si el aparato pierde el contexto gráfico (memoria, segundo plano), que se recupere solo en vez de quedarse en blanco o a parpadeos */
+$('c').addEventListener('webglcontextlost', e => e.preventDefault(), false);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(WORLD.fog, 280, 1350);
-const camera = new THREE.PerspectiveCamera(70, 1, 0.5, 2600);
+const camera = new THREE.PerspectiveCamera(70, 1, 1.5, 2600);   /* near 0.5→1.5: tres veces más precisión de profundidad; evita que las rayas y los bordes de la pista titilen de lejos en GPU de 16 bits */
 scene.add(new THREE.HemisphereLight(WORLD.hemiSky, WORLD.hemiGround, 0.95));
 const sun = new THREE.DirectionalLight(WORLD.sun, 0.75); sun.position.set(300, 500, 200); scene.add(sun);
 
@@ -1707,6 +1711,10 @@ document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preve
 (function () {
   const vv = window.visualViewport, meta = document.querySelector('meta[name=viewport]');
   if (!vv || !meta) return;
+  /* 13/10: esto se escribió para Safari del iPad. En Android, Windows o ordenador no hace falta y reescribir el viewport o
+     mover el cuerpo de la página solo puede recolocarla: ahí no se toca nada. */
+  const esApple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (!esApple) return;
   const BUENO = meta.getAttribute('content'); let pendiente = 0, intentos = 0;
   /* 12/10/2026, «la pantalla parpadea al jugar»: esto se llamaba a sí mismo. Reescribir el
      viewport provoca otro aviso de cambio y, si Safari no volvía a escala 1 (o el móvil solo
@@ -1766,8 +1774,11 @@ $('tItem').addEventListener('pointerdown', e => { e.preventDefault(); input.item
 $('tFire').addEventListener('pointerdown', e => { e.preventDefault(); input.item = true; $('tFire').classList.add('on'); setTimeout(() => $('tFire').classList.remove('on'), 150); });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
+let tamW = 0, tamH = 0;
 function resize() {
   const w = innerWidth, h = innerHeight;
+  if (w === tamW && h === tamH) return;   /* setSize borra el lienzo: repetirlo sin que cambie nada era un parpadeo */
+  tamW = w; tamH = h;
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
