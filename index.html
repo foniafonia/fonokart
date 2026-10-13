@@ -1775,6 +1775,34 @@ addEventListener('resize', resize); resize();
 resetRace();
 $('loading').hidden = true; $('menu').hidden = false;
 requestAnimationFrame(t => { last = t; frame(t); });
+/* Modo diagnóstico (13/10/2026): abrir el juego con ?diag=1 enseña en una esquina el aparato, los fotogramas por segundo,
+   los reajustes de tamaño y de zoom, y cuántas veces cambia la página de sitio. Sirve para que una familia mande una captura
+   cuando «la pantalla parpadea», sin adivinar el aparato. No cambia nada del juego y no envía nada. */
+if (/[?&]diag=1(&|$)/.test(location.search)) (function () {
+  var caja = document.createElement('pre');
+  caja.style.cssText = 'position:fixed;left:6px;top:6px;z-index:2147483000;margin:0;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,.78);color:#9ff5b8;font:11px/1.3 ui-monospace,Menlo,monospace;max-width:92vw;white-space:pre-wrap;pointer-events:none';
+  document.body.appendChild(caja);
+  var fps = 0, cuenta = 0, desde = performance.now(), res = 0, vres = 0, vscr = 0, mut = 0, gl = null, gpu = '?', prof = '?';
+  try {
+    gl = renderer.getContext(); var e = gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : 'oculto'; prof = gl.getParameter(gl.DEPTH_BITS) + ' bits';
+  } catch (er) { }
+  addEventListener('resize', function () { res++; });
+  if (window.visualViewport) { visualViewport.addEventListener('resize', function () { vres++; }); visualViewport.addEventListener('scroll', function () { vscr++; }); }
+  try { new MutationObserver(function () { mut++; }).observe(document.body, { attributes: true, attributeFilter: ['style'] }); } catch (er) { }
+  function tic(now) {
+    cuenta++;
+    if (now - desde >= 1000) {
+      fps = Math.round(cuenta * 1000 / (now - desde)); cuenta = 0; desde = now;
+      var vv = window.visualViewport, ua = navigator.userAgent.replace(/\(KHTML, like Gecko\)\s*/, '').slice(0, 90);
+      caja.textContent = 'fps ' + fps + '\n' + innerWidth + 'x' + innerHeight + ' · dpr ' + (window.devicePixelRatio || 1) + (vv ? ' · zoom ' + vv.scale.toFixed(2) : '') +
+        '\nresize ' + res + ' · vv.resize ' + vres + ' · vv.scroll ' + vscr + ' · body.style ' + mut +
+        '\nGPU ' + gpu + ' · profundidad ' + prof + '\n' + ua;
+    }
+    requestAnimationFrame(tic);
+  }
+  requestAnimationFrame(tic);
+})();
 // Contador de visitas anónimo (sin cuentas, sin cookies, solo suma 1 por apertura del juego)
 if (window.fetch) fetch('https://abacus.jasoncameron.dev/hit/foniafonia-juegos/fonokart_aperturas').catch(() => {});
 })();
