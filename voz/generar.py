@@ -26,7 +26,7 @@ if not MODELO.exists():
 html = INDEX.read_text()
 leer = r"""const h=require('fs').readFileSync(process.argv[1],'utf8');
 const coge=n=>{const m=h.match(new RegExp('const '+n+' = ([\\s\\S]*?);\\n'));return m?m[1]:'null'};
-const o=new Function('return {PALABRAS:'+coge('PALABRAS')+',LETRAS:'+coge('LETRAS')+',CONSONANTES:'+coge('CONSONANTES')+',VOCALES:'+coge('VOCALES')+',PAIRS:'+coge('PAIRS')+'}')();
+const o=new Function('return {PALABRAS:'+coge('PALABRAS')+',LETRAS:'+coge('LETRAS')+',CONSONANTES:'+coge('CONSONANTES')+',VOCALES:'+coge('VOCALES')+',PAIRS:'+coge('PAIRS')+',ORTO:'+coge('ORTO')+'}')();
 process.stdout.write(JSON.stringify(o));"""
 D = json.loads(subprocess.run(['node', '-e', leer, str(INDEX)], capture_output=True, text=True, check=True).stdout)
 
@@ -39,7 +39,7 @@ def sin_tildes(t):
 
 # clave (lo que el juego pasa a say(), en minúsculas) -> (fichero, texto que lee Piper)
 clips = {}
-for w, _ in D['PALABRAS']:
+for w, _ in D['PALABRAS'] + (D['ORTO'] or []):   # ORTO: palabras de «Ortografía» (15/10/2026)
     k = w.lower(); clips[k] = (sin_tildes(k), k.capitalize() + '.')
 letras = sorted(set(x.lower() for x in D['LETRAS']) | set(x for par in D['PAIRS'] for x in par))
 for l in letras:

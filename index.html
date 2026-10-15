@@ -140,6 +140,7 @@
     min-width:96px;max-width:132px;padding:4px 10px 6px;border-radius:12px;background:var(--cream);color:var(--ink);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);
     display:flex;flex-direction:column;align-items:center;gap:1px;font:800 8.5px var(--body);letter-spacing:.08em;text-transform:uppercase;transition:background .2s;opacity:.92}
   .quest b{font:400 22px/1.05 var(--display);letter-spacing:.03em;text-transform:none;white-space:nowrap}
+  .quest b.largo{font-size:15px;line-height:1.2;white-space:normal;display:block;max-width:86vw}
   .quest b.emoji{font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:28px;line-height:1.1}
   .quest.idle b{opacity:.35}
   .quest.ok{background:#a6eca0}
@@ -355,6 +356,11 @@ const ACTS = [
   { id: 'silabas',  name: 'Sílabas',  ask: 'Busca la sílaba',  help: 'Arriba sale una sílaba. Los distractores comparten consonante o vocal con ella.' },
   { id: 'imagenes', name: 'Imágenes', ask: 'Busca el dibujo',  help: 'Arriba sale una palabra escrita (y se oye). Pasa por la caja con su dibujo.' },
   { id: 'espejo',   name: 'Letras espejo', ask: 'Busca la',   help: 'Dislexia: en cada fila hay una caja con la letra buena (súper turbo), una con la letra que se confunde (frenazo) y dos cajas ? con premios normales.' },
+  { id: 'parecidas', name: 'Parecidas', ask: 'Busca', help: 'Arriba sale una palabra. Las otras cajas casi iguales: letra girada (b/d), letra parecida, orden cambiado u otra palabra real. El nivel sube y baja solo.' },
+  { id: 'inventadas', name: '¿Existe?', ask: '¿Cuál existe?', help: 'Una caja tiene una palabra de verdad y las otras dos, palabras inventadas que se le parecen. El nivel sube y baja solo.' },
+  { id: 'memoria', name: 'Memoria', ask: 'Recuerda', help: 'La palabra se ve un momento y se tapa. Luego hay que encontrarla entre parecidas. Cuanto más nivel, menos tiempo a la vista; en el último, series de sílabas.' },
+  { id: 'ortografia', name: 'Ortografía', ask: '¿Cómo se escribe?', help: 'Se oye la palabra y se ve el dibujo. Las cajas tienen la palabra bien escrita y faltas que suenan igual (b/v, c/z, g/j, h, ll/y).' },
+  { id: 'frases', name: 'Frases', ask: 'Completa', help: 'Arriba sale una frase con hueco. Pasa por la caja de la palabra que encaja: las otras se le parecen.' },
   { id: 'libre',    name: 'Libre',    help: 'Carrera normal, sin actividad de logopedia: las cajas dan objetos al azar.' },
 ];
 const PAIRS = [['p', 'd'], ['b', 'd'], ['p', 'q'], ['p', 'b'], ['d', 'q'], ['m', 'n'], ['n', 'u']];
@@ -780,7 +786,7 @@ function buildRows() {
     const idx = Math.floor(f * N), r = { idx, boxes: [], state: 'active', task: null, lastD: 0 };
     [-7.5, 0, 7.5].forEach((lat, j) => {
       const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const m = new THREE.Mesh(activity === 'palabras' ? wideBoxGeo : bigBoxGeo, mat);
+      const m = new THREE.Mesh(ancha() ? wideBoxGeo : bigBoxGeo, mat);
       m.position.copy(at(idx, lat, 2.4)); m.rotation.y = headingAt(idx); scene.add(m);
       r.boxes.push({ mesh: m, mat, pos: m.position.clone(), ph: j * 0.7, label: '', frame: FRAMES[j] });
     });
@@ -845,7 +851,215 @@ function fresh(gen, key) {            // evita repetir el mismo objetivo muy seg
 const cased = t => lower ? t.toLowerCase() : t;
 let pairIdx = store.get('pair', 0), pairSwap = store.get('pairSwap', false);
 const curPair = () => { const p = PAIRS[pairIdx] || PAIRS[0]; return pairSwap ? [p[1], p[0]] : p; };
+/* ---------- Actividades profundas (15/10/2026) ----------
+   Encargo para una paciente de 13 años que descodifica bien pero confunde letras y palabras
+   parecidas y va justa de memoria de trabajo: que FonoKart dé más de sí sin ser otro juego.
+   Cinco actividades nuevas con nivel 1-4 que sube y baja solo (o fijo desde la ficha, ?nivel=):
+     parecidas  palabra arriba; las otras cajas casi iguales: letra girada (bado/dabo), letra que se
+                parece (casa/cesa), orden cambiado (pared/padre) o, desde el nivel 2, otra palabra real.
+     inventadas «¿Cuál existe?»: una palabra real y dos inventadas con una letra cambiada.
+     memoria    la palabra se ve un momento y se tapa (las cajas también); luego hay que encontrarla.
+                Nivel 3 palabra inventada, nivel 4 serie de tres sílabas. A la vista 2,5 s → 1 s (?expo= ms).
+     ortografia se oye y se ve el dibujo; cajas con la palabra bien escrita y faltas que suenan igual
+                (b/v, c/z/s, g/j, h, ll/y).
+     frases     frase con hueco; la palabra que encaja y dos que se le parecen por la forma.
+   Siempre en minúscula: así se ven las letras espejo. Pendiente de revisión clínica. */
+const PROFUNDAS = ['parecidas', 'inventadas', 'memoria', 'ortografia', 'frases'];
+const LARGAS = ['MARIPOSA', 'PARAGUAS', 'PELOTA', 'TOMATE', 'CABALLO', 'VENTANA', 'PALOMA', 'CAMISETA', 'ESCALERA', 'PIRATA', 'MOCHILA', 'CEBOLLA',
+  'GALLETA', 'BOTELLA', 'DINOSAURIO', 'BICICLETA', 'MANZANA', 'PLÁTANO', 'TORTUGA', 'ZAPATILLA', 'MÚSICA', 'PIZARRA', 'CUADERNO', 'BOLÍGRAFO',
+  'ESPEJO', 'DOMINGO', 'MERIENDA', 'PANTALÓN', 'CAMIÓN', 'TELÉFONO', 'SEMÁFORO', 'MALETA', 'BALLENA', 'DELFÍN', 'COMETA', 'GUITARRA',
+  'BOMBERO', 'PUDÍN', 'DIBUJO', 'BANDERA', 'PEPINO', 'DEPORTE', 'BODEGA', 'PANADERO', 'BUFANDA', 'PIJAMA', 'PALACIO', 'PIMIENTO'];
+/* grupos de palabras REALES que se parecen por la forma (la primera es la buscada) */
+const PARECIDAS = [['CASA', 'COSA', 'CASO', 'CAPA'], ['PERRO', 'PERA', 'PERO', 'PELO'], ['BOTA', 'BOCA', 'BOLA', 'ROTA'], ['MESA', 'MASA', 'MISA', 'MOSCA'],
+  ['DEDO', 'DADO', 'DEDAL'], ['PATO', 'PALO', 'PASO', 'DATO'], ['GATO', 'GATA', 'PATO', 'RATO'], ['LUNA', 'LANA', 'CUNA'],
+  ['MANO', 'MONO', 'MAGO'], ['CAMA', 'COMA', 'DAMA', 'CAMPO'], ['TAZA', 'TAPA', 'TALA'], ['BARCO', 'BANCO', 'BARRO', 'MARCO'],
+  ['PIEL', 'PIE', 'MIEL'], ['QUESO', 'HUESO', 'BESO'], ['PADRE', 'PARED', 'MADRE', 'PODER'], ['PUERTA', 'PUERTO', 'HUERTA', 'TUERCA'],
+  ['CARTA', 'CORTA', 'CARPA', 'CARA'], ['LIBRO', 'LIBRE', 'LIBRA'], ['DOLOR', 'COLOR', 'OLOR', 'DOLER'], ['MOTO', 'NOTA', 'MOTA'],
+  ['BAÑO', 'PAÑO', 'DAÑO', 'AÑO'], ['BRAZO', 'TRAZO', 'BRAVO'], ['PALA', 'BALA', 'PALO'], ['PINO', 'VINO', 'PIANO'],
+  ['SOPA', 'ROPA', 'COPA', 'SOSA'], ['RANA', 'RAMA', 'RAYA', 'RATA'], ['BODA', 'BOTA', 'MODA', 'BOCA'], ['DUDA', 'MUDA', 'DUNA'],
+  ['BEBÉ', 'DEBE', 'BEBE'], ['NUDO', 'MUDO', 'NIDO'], ['PUNTO', 'PUENTE', 'PUNTA'], ['CUBO', 'CUBA', 'CUPO', 'TUBO']];
+const COMUNES = ('sal col mal pan pon son sin mar ola ojo ajo malo mala mapa toro todo lodo codo modo pelo peso pesa beso bote bate lata rato raro caro cara ' +
+  'cera cero coro loro lobo loco foco poco saco taco boca foca roca toca rosa losa pasa tasa nata pata dato mate mete mote nudo mudo polo pila lima ' +
+  'lama mona mina pena pana tino fino fina fama nada moda bolo baca bobo dedo pude puse para pura parra sala sola solo tela vela cola cole pide pida ' +
+  'dama doma tapa topo tipo pico poca pesa peca pepa papa pupa bajo baja deja dejo pozo pez paz voz vez sed red luz cruz dos tos los las mas mes ' +
+  'nene nana mano mono mapa mopa duda dado debo deba bebo beba pedo pena puma pomo bono bona dona done pone pino piña pana pan dan van ven den don ' +
+  'bien dien cama coma come como cubo cuba tubo mudo muda nido nada nadie pared padre poder pedir libro libre libra').split(' ');
+function sinTilde(w) { return w.replace(/[áà]/g, 'a').replace(/[éè]/g, 'e').replace(/[íì]/g, 'i').replace(/[óò]/g, 'o').replace(/[úùü]/g, 'u'); }
+const REALES = new Set([].concat(PALABRAS.map(x => x[0]), LARGAS, ...PARECIDAS, COMUNES).map(w => sinTilde(w.toLowerCase())));
+const esReal = w => REALES.has(sinTilde(String(w).toLowerCase()));
+/* letras que se confunden al mirar: giradas (b/d/p/q, n/u) o de forma parecida (a/o, m/n, i/l…) */
+const GIRO = { b: 'dpq', d: 'bqp', p: 'qbd', q: 'pd', n: 'u', u: 'n' };
+const FORMA = { a: 'oe', o: 'ac', e: 'ac', c: 'eo', m: 'n', n: 'm', i: 'l', l: 'it', t: 'lf', f: 't', r: 'n', h: 'n', s: 'z', z: 's', v: 'u', g: 'q' };
+const ES_VOCAL = c => 'aeiouáéíóú'.indexOf(c) >= 0;
+function variante(w, tipo) {
+  const x = w.toLowerCase();
+  if (tipo === 'orden') {                 // cambia de sitio dos letras de la misma clase: pato → tapo, pared → padre
+    const op = [];
+    for (let i = 0; i < x.length; i++) for (let j = i + 1; j <= i + 2 && j < x.length; j++)
+      if (x[i] !== x[j] && ES_VOCAL(x[i]) === ES_VOCAL(x[j])) op.push([i, j]);
+    if (!op.length) return null;
+    const p = pick(op), a = x.split(''); const t = a[p[0]]; a[p[0]] = a[p[1]]; a[p[1]] = t; return a.join('');
+  }
+  const mapa = tipo === 'giro' ? GIRO : FORMA, pos = [];
+  for (let i = 0; i < x.length; i++) if (mapa[x[i]]) pos.push(i);
+  if (!pos.length) return null;
+  const i = pick(pos), m = mapa[x[i]]; return x.slice(0, i) + m[(Math.random() * m.length) | 0] + x.slice(i + 1);
+}
+/* n distractores que se parecen al objetivo; con soloInventadas, ninguno puede existir */
+function distractores(w, nivel, n, soloInventadas) {
+  const tipos = nivel <= 1 ? ['forma', 'giro'] : nivel === 2 ? ['giro', 'forma'] : ['giro', 'orden', 'forma'];
+  const res = [], x = w.toLowerCase();
+  for (let g = 0; res.length < n && g < 80; g++) {
+    const v = variante(x, tipos[g % tipos.length]);
+    if (!v || v === x || res.indexOf(v) >= 0 || (soloInventadas && esReal(v))) continue;
+    res.push(v);
+  }
+  return res;
+}
+/* faltas que suenan igual (se oye bien: el error es de escribir). Devuelve [falta, regla] */
+function faltas(w) {
+  const x = w.toLowerCase(), op = [], mete = (f, r) => { if (f !== x && !op.some(o => o[0] === f)) op.push([f, r]); };
+  if (x.indexOf('b') >= 0) mete(x.replace('b', 'v'), 'b→v');
+  if (x.indexOf('v') >= 0) mete(x.replace('v', 'b'), 'v→b');
+  if (x[0] === 'h') mete(x.slice(1), 'sin h');
+  if (/^(ue|ie|ua|o|a|e)/.test(x)) mete('h' + x, 'h de más');
+  if (x.indexOf('ll') >= 0) mete(x.replace('ll', 'y'), 'll→y');
+  if (/y[aeiouáéíóú]/.test(x)) mete(x.replace(/y(?=[aeiouáéíóú])/, 'll'), 'y→ll');
+  if (/g[eéií]/.test(x)) mete(x.replace(/g(?=[eéií])/, 'j'), 'g→j');
+  if (/j[eéií]/.test(x)) mete(x.replace(/j(?=[eéií])/, 'g'), 'j→g');
+  if (/c[eéií]/.test(x)) { mete(x.replace(/c(?=[eéií])/, 'z'), 'c→z'); mete(x.replace(/c(?=[eéií])/, 's'), 'c→s'); }
+  if (x.indexOf('z') >= 0) { mete(x.replace('z', 's'), 'z→s'); if (/z[eéií]/.test(x)) mete(x.replace(/z(?=[eéií])/, 'c'), 'z→c'); }
+  return shuffle(op);
+}
+const ORTO = [['VACA', '🐮'], ['BOTA', '👢'], ['BARCO', '⛵'], ['VASO', '🥛'], ['VENTANA', '🪟'], ['BEBÉ', '👶'], ['BÚHO', '🦉'], ['HIELO', '🧊'], ['HOJA', '🍃'], ['HUEVO', '🥚'],
+  ['HELADO', '🍦'], ['HORMIGA', '🐜'], ['ZAPATO', '👟'], ['CEREZA', '🍒'], ['CEBOLLA', '🧅'], ['CIRCO', '🎪'], ['TAZA', '☕'], ['CORAZÓN', '❤️'], ['GIRASOL', '🌻'], ['JIRAFA', '🦒'],
+  ['LLAVE', '🔑'], ['LLUVIA', '🌧️'], ['PAYASO', '🤡'], ['GALLINA', '🐔'], ['CABALLO', '🐴'], ['BALLENA', '🐋'], ['VOLCÁN', '🌋'],
+  ['VIOLÍN', '🎻'], ['BOMBERO', '🚒'], ['AVIÓN', '✈️'], ['NUBE', '☁️'], ['BOLSO', '👜'], ['HUESO', '🦴'], ['ZORRO', '🦊'], ['CISNE', '🦢'], ['CEPILLO', '🪥'], ['HOGUERA', '🔥'],
+  ['CAZO', '🍲'], ['VELA', '🕯️'], ['HAMACA', '🌴'], ['GENIO', '🧞'], ['ABEJA', '🐝'], ['LLAMA', '🦙'], ['BOMBILLA', '💡'], ['HUELLA', '🐾'], ['VIENTO', '🌬️']];
+/* frase, palabra que encaja y dos que se le parecen */
+const FRASES = [['El ___ ladra en el patio.', 'perro', ['pero', 'pera']], ['Me lavo las ___ antes de comer.', 'manos', ['monos', 'mamos']],
+  ['La ___ vuela de flor en flor.', 'abeja', ['adeja', 'abaja']], ['Pon la leche en el ___.', 'vaso', ['vado', 'baso']],
+  ['El ___ navega por el mar.', 'barco', ['banco', 'darco']], ['Abro la ___ con la llave.', 'puerta', ['puerto', 'querta']],
+  ['El bebé duerme en su ___.', 'cuna', ['luna', 'cuma']], ['En verano hace mucho ___.', 'calor', ['color', 'caler']],
+  ['Juego a la ___ en el parque.', 'pelota', ['pelata', 'qelota']], ['Leo un ___ de aventuras.', 'libro', ['libre', 'lidro']],
+  ['La sopa está en el ___.', 'plato', ['pato', 'qlato']], ['El ___ come zanahorias.', 'conejo', ['consejo', 'canejo']],
+  ['La ___ da leche.', 'vaca', ['boca', 'vaco']], ['El ___ tiene ocho patas.', 'pulpo', ['puldo', 'pulqo']],
+  ['Bebo agua de la ___.', 'botella', ['dotella', 'botalla']], ['Por la mañana sale el ___.', 'sol', ['sal', 'col']],
+  ['Escribo mi nombre en el ___.', 'papel', ['papal', 'qapel']], ['El ___ ruge en la selva.', 'león', ['peón', 'neón']],
+  ['Me abrigo con la ___.', 'manta', ['menta', 'nanta']], ['El ___ repite lo que dices.', 'loro', ['lobo', 'loco']],
+  ['Corto el pan con el ___.', 'cuchillo', ['cuchilla', 'cuchiyo']], ['Mi ___ es mayor que yo.', 'hermano', ['hermana', 'ermano']],
+  ['Riego la ___ del balcón.', 'planta', ['plata', 'qlanta']], ['Me pongo las ___ para correr.', 'zapatillas', ['zapatallas', 'sapatillas']],
+  ['El ___ vuela muy alto.', 'avión', ['abión', 'auión']], ['Me cepillo los ___ al acostarme.', 'dientes', ['dientas', 'bientes']],
+  ['La ___ pone huevos.', 'gallina', ['gallena', 'gayina']], ['En el cielo hay una ___ blanca.', 'nube', ['nuve', 'nuba']],
+  ['Mi madre aparca el ___.', 'coche', ['cocha', 'cohce']], ['El ___ da sombra en el parque.', 'árbol', ['árdol', 'álbor']],
+  ['Hoy no hay clase: es ___.', 'domingo', ['bomingo', 'domengo']], ['Guardo los libros en la ___.', 'mochila', ['mochela', 'nochila']],
+  ['El ___ apaga el fuego.', 'bombero', ['donbero', 'bombera']], ['Pinto el dibujo con un ___.', 'lápiz', ['lápis', 'lápez']]];
+const SIL_SERIE = ['ba', 'da', 'pa', 'bo', 'do', 'po', 'be', 'de', 'pe', 'ma', 'na', 'mu', 'nu', 'bu', 'du', 'pu', 'la', 'ta'];
+/* qué tipo de trampa es b respecto a a: lo usa el informe */
+function sonido(w) { return sinTilde(w.toLowerCase()).replace(/^h|([^c])h/g, '$1').replace(/v/g, 'b').replace(/ll/g, 'y').replace(/g([ei])/g, 'j$1').replace(/c([ei])/g, 'z$1').replace(/s/g, 'z'); }
+function tipoTrampa(a, b) {
+  a = String(a || '').toLowerCase(); b = String(b || '').toLowerCase();
+  if (!a || !b || a === b) return '';
+  if (sonido(a) === sonido(b)) return 'suena igual';
+  if (a.length === b.length) {
+    const d = []; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d.push(i);
+    if (d.length === 1) { const x = a[d[0]], y = b[d[0]];
+      if ((GIRO[x] || '').indexOf(y) >= 0) return esReal(b) ? 'otra palabra real' : 'letra girada';
+      if ((FORMA[x] || '').indexOf(y) >= 0 || (FORMA[y] || '').indexOf(x) >= 0) return esReal(b) ? 'otra palabra real' : 'letra parecida'; }
+    if (a.split('').sort().join('') === b.split('').sort().join('')) return 'orden';
+  }
+  return esReal(b) ? 'otra palabra real' : 'otra';
+}
+/* qué dos letras (o palabras) confundió */
+function parConfundido(a, b, regla) {
+  if (regla) return regla;
+  a = String(a || '').toLowerCase(); b = String(b || '').toLowerCase(); if (!a || !b) return '';
+  if (a.length === b.length) { const d = []; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d.push(i);
+    if (d.length === 1) return a[d[0]] + '/' + b[d[0]]; }
+  return a + '/' + b;
+}
+const FQ0 = (() => { try { return new URLSearchParams(location.search); } catch (e) { return { get: () => null }; } })();
+const NIVEL_FIJO = (() => { const n = parseInt(FQ0.get('nivel'), 10); return n >= 1 && n <= 4 ? n : 0; })();
+const EXPO_FIJA = (() => { const n = parseInt(FQ0.get('expo'), 10); return n >= 400 && n <= 8000 ? n : 0; })();
+let nivelAct = 1, nivelIni = 1, nivelCambios = [], nivelDesde = 0;
+const expoMs = () => EXPO_FIJA || [2500, 2000, 1500, 1000][nivelAct - 1];
+const esProfunda = () => PROFUNDAS.indexOf(activity) >= 0;
+function nivelInicio() { nivelAct = NIVEL_FIJO || clamp(store.get('nivel_' + activity, 1) | 0, 1, 4); nivelIni = nivelAct; nivelCambios = []; nivelDesde = 0; }
+/* el nivel se mueve solo con las 6 últimas cajas cogidas desde el último cambio: 5 bien, sube; 2 o menos, baja */
+function ajustaNivel() {
+  if (NIVEL_FIJO || !esProfunda()) return;
+  const ult = stats.slice(nivelDesde).filter(s => s.chosen); if (ult.length < 6) return;
+  const ok = ult.slice(-6).filter(s => s.ok).length;
+  let n = nivelAct; if (ok >= 5 && n < 4) n++; else if (ok <= 2 && n > 1) n--;
+  if (n === nivelAct) return;
+  nivelCambios.push((n > nivelAct ? 'sube a ' : 'baja a ') + n); nivelAct = n; nivelDesde = stats.length;
+  store.set('nivel_' + activity, n); showMsg('NIVEL ' + n, 1.2);
+}
+function tareaProfunda(act) {
+  const n = nivelAct;
+  if (act === 'ortografia') {
+    const w = fresh(() => pick(ORTO), x => x[0]), x = w[0].toLowerCase(), f = faltas(x), reglas = {};
+    let opts = f.slice(0, n === 1 ? 1 : 2).map(o => { reglas[o[0]] = o[1]; return o[0]; });
+    opts = opts.concat(distractores(x, n, 4, true).filter(v => opts.indexOf(v) < 0).slice(0, 2 - opts.length));
+    return { prompt: w[1], img: true, say: x, answer: x, options: shuffle([x].concat(opts)), optImg: false, reglas, kind: act };
+  }
+  if (act === 'frases') {
+    const fr = fresh(() => pick(FRASES), x => x[1]);
+    return { prompt: fr[0], img: false, say: '', answer: fr[1], options: shuffle([fr[1]].concat(fr[2])), optImg: false, kind: act, largo: true };
+  }
+  if (act === 'memoria' && n === 4) {          // serie de tres sílabas: memoria del orden
+    const s = shuffle(SIL_SERIE.slice()).slice(0, 3), w = s.join(' '), op = [w];
+    for (let g = 0; op.length < 3 && g < 40; g++) {
+      const t = s.slice();
+      if (g % 2) { const i = (Math.random() * 2) | 0, k = t[i]; t[i] = t[i + 1]; t[i + 1] = k; }
+      else { const i = (Math.random() * 3) | 0, v = variante(t[i], 'giro'); if (v) t[i] = v; }
+      const c = t.join(' '); if (op.indexOf(c) < 0) op.push(c);
+    }
+    return { prompt: w, img: false, say: '', answer: w, options: shuffle(op), optImg: false, kind: act, memoria: true };
+  }
+  let w;
+  if (act === 'memoria' && n === 3) {          // palabra inventada: sin el apoyo del significado
+    const base = fresh(() => pick(PALABRAS.map(x => x[0]).filter(x => x.length >= 4 && x.length <= 6)), x => x).toLowerCase();
+    w = distractores(base, 2, 1, true)[0] || base;
+  } else {
+    const banco = n <= 2 ? PALABRAS.map(x => x[0]).filter(x => x.length >= 3 && x.length <= 6) : LARGAS;
+    w = fresh(() => pick(banco), x => x).toLowerCase();
+  }
+  if (act === 'parecidas' && n >= 2 && Math.random() < 0.6) {   // una de las trampas es otra palabra real
+    const gr = fresh(() => pick(PARECIDAS), g => g[0]); w = gr[0].toLowerCase();
+    const real = pick(gr.slice(1)).toLowerCase(), otra = distractores(w, n, 1, false).filter(v => v !== real)[0];
+    if (otra) return { prompt: w, img: false, say: '', answer: w, options: shuffle([w, real, otra]), optImg: false, kind: act };
+  }
+  const d = distractores(w, n, 2, act === 'inventadas');
+  if (d.length < 2) return tareaProfunda(act);
+  if (act === 'inventadas') return { prompt: '·', img: false, say: '', answer: w, options: shuffle([w].concat(d)), optImg: false, kind: act };
+  return { prompt: w, img: false, say: '', answer: w, options: shuffle([w].concat(d)), optImg: false, kind: act, memoria: act === 'memoria' };
+}
+const mediana = a => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+const pctDe = a => a.length ? Math.round(a.filter(s => s.ok).length / a.length * 100) : 0;
+/* filas extra del envío: nivel, trampas, pares, tiempo y cansancio */
+function filasProfundas() {
+  const f = [], cog = stats.filter(s => s.chosen);
+  if (esProfunda()) {
+    f.push(['Nivel', NIVEL_FIJO ? nivelAct + ' (fijado en la ficha)' : nivelIni + ' → ' + nivelAct + (nivelCambios.length ? ' (' + nivelCambios.join(', ') + ')' : ' (sin cambios)')]);
+    const porN = {}; stats.forEach(s => { const k = s.nivel || nivelAct; porN[k] = porN[k] || [0, 0]; porN[k][1]++; if (s.ok) porN[k][0]++; });
+    f.push(['Aciertos por nivel', Object.keys(porN).sort().map(k => 'n' + k + ' ' + porN[k][0] + '/' + porN[k][1]).join(' · ')]);
+    const trampas = {}, pares = {};
+    cog.filter(s => !s.ok).forEach(s => { trampas[s.trampa] = (trampas[s.trampa] || 0) + 1; pares[s.par] = (pares[s.par] || 0) + 1; });
+    const lista = o => Object.keys(o).filter(k => k).sort((a, b) => o[b] - o[a]).map(k => k + (o[k] > 1 ? ' ×' + o[k] : '')).join(' · ') || '—';
+    f.push(['Trampas en que cayó', lista(trampas)], ['Pares que confunde', lista(pares)]);
+    if (activity === 'memoria') f.push(['Tiempo a la vista', (EXPO_FIJA ? EXPO_FIJA + ' ms (fijado)' : 'según nivel, ' + expoMs() + ' ms al final')]);
+  }
+  const tOk = cog.filter(s => s.ok && s.ms).map(s => s.ms), tMal = cog.filter(s => !s.ok && s.ms).map(s => s.ms);
+  if (tOk.length || tMal.length) f.push(['Tiempo hasta coger caja (mediana, incluye conducir)', (tOk.length ? 'aciertos ' + (mediana(tOk) / 1000).toFixed(1) + ' s' : '') + (tMal.length ? (tOk.length ? ' · ' : '') + 'fallos ' + (mediana(tMal) / 1000).toFixed(1) + ' s' : '')]);
+  if (stats.length >= 8) {
+    const m = stats.length >> 1, a = pctDe(stats.slice(0, m)), b = pctDe(stats.slice(m));
+    f.push(['Primera mitad / segunda mitad', a + ' % / ' + b + ' %' + (a - b >= 25 ? ' (baja al final: posible cansancio)' : '')]);
+  }
+  return f;
+}
 function makeTask(act) {
+  if (PROFUNDAS.indexOf(act) >= 0) return tareaProfunda(act);
   if (act === 'espejo') {
     const [t, c] = curPair(), T = cased(t.toUpperCase()), C = cased(c.toUpperCase());
     const roles = shuffle(['target', 'confuse', 'item']);
@@ -875,11 +1089,22 @@ function makeTask(act) {
   if (act === 'palabras') return { prompt: w[1], img: true, say: w[0].toLowerCase(), answer: cased(w[0]), options: all.map(x => cased(x[0])), optImg: false };
   return { prompt: cased(w[0]), img: false, say: w[0].toLowerCase(), answer: w[1], options: all.map(x => x[1]), optImg: true };
 }
+const ancha = () => activity === 'palabras' || esProfunda();
+/* Memoria: pasado el tiempo a la vista se tapa la palabra y se destapan las cajas */
+function destapa(r) {
+  r.expoT = 0; r.shownAt = raceT; $('qText').textContent = '¿Cuál era?';
+  r.boxes.forEach(b => { b.mat.map = labelTexture(b.label, false, b.frame, true); b.mat.needsUpdate = true; });
+}
+function dato(r, chosen, ok) {
+  const mal = chosen && !ok;
+  return { task: r.task, chosen, ok, nivel: nivelAct, ms: r.shownAt != null ? Math.max(0, Math.round((raceT - r.shownAt) * 1000)) : 0,
+    trampa: mal ? tipoTrampa(r.task.answer, chosen) : '', par: mal ? parConfundido(r.task.answer, chosen, r.task.reglas && r.task.reglas[chosen]) : '' };
+}
 function newTask(r) {
-  r.task = makeTask(activity); r.state = 'active';
+  r.task = makeTask(activity); r.state = 'active'; r.shownAt = null; r.expoT = 0;
   r.boxes.forEach((b, j) => {
     b.label = r.task.options[j]; b.role = r.task.roles ? r.task.roles[j] : null;
-    b.mat.map = b.role === 'item' ? boxMat.map : labelTexture(b.label, r.task.optImg, b.frame, activity === 'palabras'); b.mat.needsUpdate = true;
+    b.mat.map = b.role === 'item' || r.task.memoria ? boxMat.map : labelTexture(b.label, r.task.optImg, b.frame, ancha()); b.mat.needsUpdate = true;
     b.mesh.visible = true; b.mesh.scale.set(1, 1, 1);
   });
 }
@@ -906,7 +1131,7 @@ function answer(r, b) {
   if (r.task.roles) return answerMirror(r, b);
   const ok = b.label === r.task.answer;
   r.state = 'hidden'; r.popT = 0.25;
-  stats.push({ task: r.task, chosen: b.label, ok });
+  stats.push(dato(r, b.label, ok)); ajustaNivel();
   if (ok) {
     player.boost = Math.max(player.boost, 1.3);
     if (!player.item && player.rolling <= 0) { player.rolling = 0.8; player.pending = pickItem(); renderItem(); }
@@ -929,7 +1154,7 @@ function updateRows(dt) {
       }
       if (r.state === 'active' && r.lastD < 25 && d > N - 60) {       // pasó de largo
         r.state = 'hidden'; r.popT = 0.25;
-        if (!player.finished) stats.push({ task: r.task, chosen: null, ok: false });
+        if (!player.finished) stats.push(dato(r, null, false));
       }
     } else {
       if (r.popT > 0) { r.popT -= dt; const s = Math.max(0.01, r.popT / 0.25); r.boxes.forEach(b => b.mesh.scale.set(s, s, s)); if (r.popT <= 0) r.boxes.forEach(b => b.mesh.visible = false); }
@@ -938,13 +1163,15 @@ function updateRows(dt) {
     if (r.state === 'active' && d < N * 0.5 && d < bd) { bd = d; best = r; }
     r.lastD = d;
   }
+  if (questRow && questRow.expoT > 0 && state === 'race') { questRow.expoT -= dt; if (questRow.expoT <= 0) destapa(questRow); }
   if (questFlash > 0) { questFlash -= dt; if (questFlash <= 0) $('quest').classList.remove('ok', 'no'); }
   if (best !== questRow || (best && best.task !== questRow.shownTask)) {
     questRow = best;
     const qt = $('qText'), q = $('quest');
     if (best) {
-      best.shownTask = best.task;
-      qt.textContent = best.task.prompt; qt.classList.toggle('emoji', best.task.img); q.classList.remove('idle');
+      best.shownTask = best.task; best.shownAt = raceT;
+      if (best.task.memoria && best.expoT === 0 && best.boxes[0].mat.map === boxMat.map) best.expoT = expoMs() / 1000;
+      qt.textContent = best.task.prompt; qt.classList.toggle('emoji', best.task.img); qt.classList.toggle('largo', !!best.task.largo); q.classList.remove('idle');
       if (state === 'race' || state === 'countdown') say(best.task.say);
     } else { q.classList.add('idle'); }
   }
@@ -956,7 +1183,7 @@ function updateRows(dt) {
 // si algún día se añade un texto sin regenerar los clips.
 let voiceOn = store.get('voice', true), lower = store.get('lower', false), esVoice = null;
 /*VOZ_CLIPS:inicio — generado por voz/generar.py, no editar a mano*/
-const VOZ_CLIPS = {"a": "a", "b": "letra-b", "ba": "sil-ba", "barco": "barco", "be": "sil-be", "bebé": "bebe", "bi": "sil-bi", "bici": "bici", "bo": "sil-bo", "bosque": "bosque", "bota": "bota", "brazo": "brazo", "bu": "sil-bu", "búho": "buho", "c": "letra-c", "ca": "sil-ca", "cama": "cama", "casa": "casa", "cerdo": "cerdo", "co": "sil-co", "coche": "coche", "cu": "sil-cu", "d": "letra-d", "da": "sil-da", "dado": "dado", "de": "sil-de", "dedo": "dedo", "delfín": "delfin", "di": "sil-di", "diente": "diente", "do": "sil-do", "du": "sil-du", "e": "e", "esa es la b": "esa-b", "esa es la d": "esa-d", "esa es la m": "esa-m", "esa es la n": "esa-n", "esa es la p": "esa-p", "esa es la q": "esa-q", "esa es la u": "esa-u", "estrella": "estrella", "f": "letra-f", "fa": "sil-fa", "fe": "sil-fe", "fi": "sil-fi", "flor": "flor", "fo": "sil-fo", "fu": "sil-fu", "fuego": "fuego", "g": "letra-g", "ga": "sil-ga", "gato": "gato", "globo": "globo", "go": "sil-go", "gu": "sil-gu", "hola": "hola", "i": "i", "l": "letra-l", "la": "la", "le": "sil-le", "león": "leon", "li": "sil-li", "libro": "libro", "limón": "limon", "llave": "llave", "lo": "sil-lo", "lu": "sil-lu", "luna": "luna", "m": "letra-m", "ma": "sil-ma", "mano": "mano", "mariposa": "mariposa", "me": "sil-me", "mesa": "mesa", "mi": "sil-mi", "mo": "sil-mo", "mono": "mono", "mu": "sil-mu", "muy bien, la b": "bien-b", "muy bien, la d": "bien-d", "muy bien, la m": "bien-m", "muy bien, la n": "bien-n", "muy bien, la p": "bien-p", "muy bien, la q": "bien-q", "muy bien, la u": "bien-u", "n": "letra-n", "na": "sil-na", "naranja": "naranja", "nariz": "nariz", "ne": "sil-ne", "ni": "sil-ni", "nido": "nido", "no": "sil-no", "nu": "sil-nu", "nube": "nube", "o": "o", "oso": "oso", "p": "letra-p", "pa": "sil-pa", "pan": "pan", "paraguas": "paraguas", "pato": "pato", "pe": "sil-pe", "pelota": "pelota", "pera": "pera", "perro": "perro", "pez": "pez", "pi": "sil-pi", "pie": "pie", "pintura": "pintura", "pizza": "pizza", "piña": "pina", "po": "sil-po", "pollo": "pollo", "pu": "sil-pu", "q": "letra-q", "queso": "queso", "r": "letra-r", "ra": "sil-ra", "rana": "rana", "ratón": "raton", "re": "sil-re", "ri": "sil-ri", "ro": "sil-ro", "ru": "sil-ru", "s": "letra-s", "sa": "sil-sa", "se": "sil-se", "seta": "seta", "si": "sil-si", "so": "sil-so", "sol": "sol", "su": "sil-su", "t": "letra-t", "ta": "sil-ta", "taza": "taza", "te": "sil-te", "ti": "sil-ti", "to": "sil-to", "tomate": "tomate", "tren": "tren", "tu": "sil-tu", "u": "u", "uvas": "uvas", "vaca": "vaca", "zapato": "zapato", "árbol": "arbol"};
+const VOZ_CLIPS = {"a": "a", "abeja": "abeja", "avión": "avion", "b": "letra-b", "ba": "sil-ba", "ballena": "ballena", "barco": "barco", "be": "sil-be", "bebé": "bebe", "bi": "sil-bi", "bici": "bici", "bo": "sil-bo", "bolso": "bolso", "bombero": "bombero", "bombilla": "bombilla", "bosque": "bosque", "bota": "bota", "brazo": "brazo", "bu": "sil-bu", "búho": "buho", "c": "letra-c", "ca": "sil-ca", "caballo": "caballo", "cama": "cama", "casa": "casa", "cazo": "cazo", "cebolla": "cebolla", "cepillo": "cepillo", "cerdo": "cerdo", "cereza": "cereza", "circo": "circo", "cisne": "cisne", "co": "sil-co", "coche": "coche", "corazón": "corazon", "cu": "sil-cu", "d": "letra-d", "da": "sil-da", "dado": "dado", "de": "sil-de", "dedo": "dedo", "delfín": "delfin", "di": "sil-di", "diente": "diente", "do": "sil-do", "du": "sil-du", "e": "e", "esa es la b": "esa-b", "esa es la d": "esa-d", "esa es la m": "esa-m", "esa es la n": "esa-n", "esa es la p": "esa-p", "esa es la q": "esa-q", "esa es la u": "esa-u", "estrella": "estrella", "f": "letra-f", "fa": "sil-fa", "fe": "sil-fe", "fi": "sil-fi", "flor": "flor", "fo": "sil-fo", "fu": "sil-fu", "fuego": "fuego", "g": "letra-g", "ga": "sil-ga", "gallina": "gallina", "gato": "gato", "genio": "genio", "girasol": "girasol", "globo": "globo", "go": "sil-go", "gu": "sil-gu", "hamaca": "hamaca", "helado": "helado", "hielo": "hielo", "hoguera": "hoguera", "hoja": "hoja", "hola": "hola", "hormiga": "hormiga", "huella": "huella", "hueso": "hueso", "huevo": "huevo", "i": "i", "jirafa": "jirafa", "l": "letra-l", "la": "la", "le": "sil-le", "león": "leon", "li": "sil-li", "libro": "libro", "limón": "limon", "llama": "llama", "llave": "llave", "lluvia": "lluvia", "lo": "sil-lo", "lu": "sil-lu", "luna": "luna", "m": "letra-m", "ma": "sil-ma", "mano": "mano", "mariposa": "mariposa", "me": "sil-me", "mesa": "mesa", "mi": "sil-mi", "mo": "sil-mo", "mono": "mono", "mu": "sil-mu", "muy bien, la b": "bien-b", "muy bien, la d": "bien-d", "muy bien, la m": "bien-m", "muy bien, la n": "bien-n", "muy bien, la p": "bien-p", "muy bien, la q": "bien-q", "muy bien, la u": "bien-u", "n": "letra-n", "na": "sil-na", "naranja": "naranja", "nariz": "nariz", "ne": "sil-ne", "ni": "sil-ni", "nido": "nido", "no": "sil-no", "nu": "sil-nu", "nube": "nube", "o": "o", "oso": "oso", "p": "letra-p", "pa": "sil-pa", "pan": "pan", "paraguas": "paraguas", "pato": "pato", "payaso": "payaso", "pe": "sil-pe", "pelota": "pelota", "pera": "pera", "perro": "perro", "pez": "pez", "pi": "sil-pi", "pie": "pie", "pintura": "pintura", "pizza": "pizza", "piña": "pina", "po": "sil-po", "pollo": "pollo", "pu": "sil-pu", "q": "letra-q", "queso": "queso", "r": "letra-r", "ra": "sil-ra", "rana": "rana", "ratón": "raton", "re": "sil-re", "ri": "sil-ri", "ro": "sil-ro", "ru": "sil-ru", "s": "letra-s", "sa": "sil-sa", "se": "sil-se", "seta": "seta", "si": "sil-si", "so": "sil-so", "sol": "sol", "su": "sil-su", "t": "letra-t", "ta": "sil-ta", "taza": "taza", "te": "sil-te", "ti": "sil-ti", "to": "sil-to", "tomate": "tomate", "tren": "tren", "tu": "sil-tu", "u": "u", "uvas": "uvas", "vaca": "vaca", "vaso": "vaso", "vela": "vela", "ventana": "ventana", "viento": "viento", "violín": "violin", "volcán": "volcan", "zapato": "zapato", "zorro": "zorro", "árbol": "arbol"};
 /*VOZ_CLIPS:fin*/
 // Un solo reproductor para toda la partida. En iPad, Safari solo deja sonar un
 // audio que nace de un toque: crear uno nuevo en mitad de la carrera (cuando
@@ -980,7 +1207,7 @@ function sayClip(text) {
   return true;
 }
 function say(text) {
-  if (!voiceOn || muted) return;
+  if (!text || !voiceOn || muted) return;
   if (sayClip(text)) return;
   if (!window.speechSynthesis) return;
   try {
@@ -1001,13 +1228,16 @@ const TERAPEUTA = (() => { const v = (FQ.get('t') || '').trim(); return /^[A-Za-
 const VOLVER = (() => { const m = /^([A-Za-z0-9]{24})\.([A-Za-z0-9_-]{43})$/.exec(FQ.get('volver') || ''); return m ? 'https://fonia-materiales.vercel.app/tratamiento/#t=' + m[1] + '&k=' + m[2] : ''; })();
 (() => { const a = (FQ.get('act') || '').toLowerCase(); if (ACTS.some(x => x.id === a)) activity = a; })();
 let state = 'menu', raceT = 0, countT = 0, player = karts[0], chosen = store.get('pilot', 0), diff = clamp(store.get('diff', 1) | 0, 0, 4);
+/* Rivales desde la ficha: ?rivales=0..4 fija la velocidad; ?rivales=auto la ajusta tras cada carrera */
+const RIVALES = (FQ.get('rivales') || '').toLowerCase();
+if (/^[0-4]$/.test(RIVALES)) diff = +RIVALES;
 let muted = store.get('muted', false), finishT = 0, boardT = 0, lastLapShown = 0;
 const input = { left: false, right: false, gas: false, brake: false, drift: false, item: false };
 let touchMode = false;
 
 function resetRace() {
   bananas.forEach(b => scene.remove(b.mesh)); shells.forEach(s => scene.remove(s.mesh)); bananas = []; shells = [];
-  clearBoxes(); recent = []; stats = []; questRow = null;
+  clearBoxes(); recent = []; stats = []; questRow = null; nivelInicio();
   const learn = activity !== 'libre';
   if (learn) buildRows(); else buildFreeBoxes();
   document.body.classList.toggle('learn', learn); $('quest').hidden = !learn;
@@ -1466,7 +1696,7 @@ async function foniaRevisaCola() {
 if (CASO) foniaRevisaCola();
 /* Qué se manda al acabar una carrera. Devuelve las filas (se prueba aparte). */
 function foniaFilas(puesto) {
-  const act = ACTS.find(a => a.id === activity), filas = [['Actividad', act.name], ['Puesto', puesto + 'º de ' + karts.length], ['Rivales', DIFF_NOMBRE[diff] || String(diff)]];
+  const act = ACTS.find(a => a.id === activity), filas = [['Actividad', act.name], ['Puesto', puesto + 'º de ' + karts.length], ['Rivales', (DIFF_NOMBRE[diff] || String(diff)) + (RIVALES === 'auto' ? ' (se ajustan solos)' : /^[0-4]$/.test(RIVALES) ? ' (fijados en la ficha)' : '')]];
   let pct, cuesta = '';
   if (activity === 'espejo') {
     const par = curPair(), n = role => stats.filter(x => x.role === role).length, buena = n('target'), mala = n('confuse');
@@ -1478,6 +1708,7 @@ function foniaFilas(puesto) {
     filas.push(['Aciertos', ok + ' de ' + stats.length], ['Fallos', String(mal.length)], ['Sin responder', String(sin)]);
     pct = stats.length ? Math.round(ok / stats.length * 100) : 0;
     if (mal.length) { const vistos = []; mal.forEach(x => { const t = String(x.task.answer); if (vistos.indexOf(t) < 0) vistos.push(t); }); cuesta = vistos.slice(0, 6).join(', '); filas.push(['Falló al buscar', cuesta]); }
+    filas.push.apply(filas, filasProfundas());
   }
   filas.push(['Fönia · Cómo va', pct >= 80 ? 'bien' : pct >= 50 ? 'regular' : 'le cuesta'], ['Fönia · Qué le cuesta', cuesta || '—'],
     ['Fönia · Qué toca ahora', pct >= 80 ? 'seguir con «' + act.name + '» o poner rivales más rápidos' : pct >= 50 ? 'seguir con «' + act.name + '»' : 'repetir «' + act.name + '» con rivales tranquilos']);
@@ -1515,12 +1746,19 @@ function showResults() {
     const ok = stats.filter(s => s.ok).length, bad = stats.filter(s => s.chosen && !s.ok), miss = stats.filter(s => !s.chosen).length;
     const show = (t, img) => img ? `<span class="em">${t}</span>` : t;
     const act = ACTS.find(a => a.id === activity);
+    const pr = s => s.task.prompt === s.task.answer || s.task.prompt === '·' || s.task.largo ? '' : ` (${show(s.task.prompt, s.task.img)})`;
     lr.innerHTML = `<div>${act.name}: <b>${ok}</b> aciertos de ${stats.length} · ${bad.length} fallos · ${miss} sin responder</div>` +
-      (bad.length ? '<ul>' + bad.map(s => `<li>Buscaba ${show(s.task.answer, s.task.optImg)} (${show(s.task.prompt, s.task.img)}) y cogió ${show(s.chosen, s.task.optImg)}</li>`).join('') + '</ul>' : '');
+      (esProfunda() ? `<div>Nivel ${NIVEL_FIJO ? nivelAct + ' (fijo)' : nivelIni + ' → <b>' + nivelAct + '</b>'}</div>` : '') +
+      (bad.length ? '<ul>' + bad.map(s => `<li>Buscaba ${show(s.task.answer, s.task.optImg)}${pr(s)} y cogió ${show(s.chosen, s.task.optImg)}${s.trampa ? ' · ' + s.trampa : ''}</li>`).join('') + '</ul>' : '');
     lr.hidden = false;
   } else lr.hidden = true;
   $('resTable').innerHTML = rows.map(({ k, t, i }) => `<tr class="${k.isPlayer ? 'me' : ''}"><td>${i + 1}º</td><td><span class="dot" style="background:${k.color}"></span>${k.name}${k.isPlayer ? ' (tú)' : ''}</td><td>${fmt(t)}</td></tr>`).join('');
   foniaEnviaCarrera(p);
+  if (RIVALES === 'auto' && activity !== 'libre' && stats.length) {
+    const acc = pctDe(stats), antes = diff;
+    if (p === 1 && acc >= 80 && diff < 4) diff++; else if ((p >= 6 || acc < 50) && diff > 0) diff--;
+    if (diff !== antes) { store.set('diff', diff); $('diff').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', +x.dataset.d === diff)); lr.innerHTML += `<div>Rivales para la próxima: <b>${DIFF_NOMBRE[diff]}</b></div>`; lr.hidden = false; }
+  }
   if (VOLVER && !$('foniaVolver')) { const a = document.createElement('a'); a.id = 'foniaVolver'; a.href = VOLVER; a.textContent = '🏠 Volver a mi plan'; a.style.cssText = 'display:block;margin:10px auto 0;text-align:center;font-weight:700;color:inherit'; $('learnRes').parentNode.appendChild(a); }
   $('results').hidden = false; $('hud').hidden = true;
 }
