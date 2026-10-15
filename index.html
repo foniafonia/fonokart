@@ -1055,7 +1055,7 @@ const ETAPAS = [
   { id: 'orto', titulo: 'Ortografía', icono: '✏️', act: 'ortografia', nivel: 2, nota: 'b/v, c/z/s, g/j, h, ll/y' },
   { id: 'frases', titulo: 'Frases', icono: '📖', act: 'frases', nivel: 2, nota: 'la palabra que encaja entre parecidas' },
   { id: 'series', titulo: 'Series', icono: '🏆', act: 'memoria', nivel: 4, nota: 'tres sílabas en orden, 1 s' }];
-let ruta = false, Mundos = null, etapa = null;
+let ruta = false, Mundos = null, etapa = null, finRuta = null;
 function mundos() {
   if (Mundos || !window.FoniaMundos) return Mundos;
   const n = parseInt(FQ0.get('mundo'), 10), caso = (FQ0.get('caso') || '').toLowerCase();
@@ -1068,7 +1068,7 @@ const pctDe = a => a.length ? Math.round(a.filter(s => s.ok).length / a.length *
 function filasProfundas() {
   const f = [], cog = stats.filter(s => s.chosen);
   if (esProfunda()) {
-    if (ruta && etapa) f.push(['Mundo del camino', (Mundos.actual() + 1) + '. ' + etapa.titulo + ' (' + etapa.nota + ')']);
+    if (ruta && etapa) f.push(['Mundo del camino', (ETAPAS.indexOf(etapa) + 1) + '. ' + etapa.titulo + ' (' + etapa.nota + ')']);
     f.push(['Nivel', ruta ? nivelAct + ' (lo pone el mundo)' : NIVEL_FIJO ? nivelAct + ' (fijado en la ficha)' : nivelIni + ' → ' + nivelAct + (nivelCambios.length ? ' (' + nivelCambios.join(', ') + ')' : ' (sin cambios)')]);
     const porN = {}; stats.forEach(s => { const k = s.nivel || nivelAct; porN[k] = porN[k] || [0, 0]; porN[k][1]++; if (s.ok) porN[k][0]++; });
     f.push(['Aciertos por nivel', Object.keys(porN).sort().map(k => 'n' + k + ' ' + porN[k][0] + '/' + porN[k][1]).join(' · ')]);
@@ -1267,7 +1267,7 @@ let touchMode = false;
 function resetRace() {
   bananas.forEach(b => scene.remove(b.mesh)); shells.forEach(s => scene.remove(s.mesh)); bananas = []; shells = [];
   if (ruta && mundos()) { etapa = ETAPAS[Mundos.actual()]; activity = etapa.act; }
-  clearBoxes(); recent = []; stats = []; questRow = null; nivelInicio();
+  clearBoxes(); recent = []; stats = []; questRow = null; finRuta = null; nivelInicio();
   const learn = activity !== 'libre';
   if (learn) buildRows(); else buildFreeBoxes();
   document.body.classList.toggle('learn', learn); $('quest').hidden = !learn;
@@ -1740,9 +1740,9 @@ function foniaFilas(puesto) {
     if (mal.length) { const vistos = []; mal.forEach(x => { const t = String(x.task.answer); if (vistos.indexOf(t) < 0) vistos.push(t); }); cuesta = vistos.slice(0, 6).join(', '); filas.push(['Falló al buscar', cuesta]); }
     filas.push.apply(filas, filasProfundas());
   }
-  if (ruta && Mundos) filas.push(['Partida (motivación, no es dato clínico)', 'mundo ' + (Mundos.actual() + 1) + ' de ' + ETAPAS.length + ' · abiertos ' + Mundos.desbloqueados() + (Mundos.fijado() ? ' · fijado en la ficha' : '')]);
+  if (ruta && Mundos) filas.push(['Partida (motivación, no es dato clínico)', 'jugó el mundo ' + (ETAPAS.indexOf(etapa) + 1) + ' de ' + ETAPAS.length + (finRuta ? ' · ' + finRuta.estrellas + '⭐' + (finRuta.abre ? ' · abre «' + finRuta.abre + '»' : '') : '') + ' · abiertos ' + Mundos.desbloqueados() + (Mundos.fijado() ? ' · fijado en la ficha' : '')]);
   filas.push(['Fönia · Cómo va', pct >= 80 ? 'bien' : pct >= 50 ? 'regular' : 'le cuesta'], ['Fönia · Qué le cuesta', cuesta || '—'],
-    ['Fönia · Qué toca ahora', pct >= 80 ? 'seguir con «' + act.name + '» o poner rivales más rápidos' : pct >= 50 ? 'seguir con «' + act.name + '»' : 'repetir «' + act.name + '» con rivales tranquilos']);
+    ['Fönia · Qué toca ahora', ruta && etapa ? (pct >= 70 ? 'seguir el camino' : 'repetir el mundo «' + etapa.titulo + '»') : pct >= 80 ? 'seguir con «' + act.name + '» o poner rivales más rápidos' : pct >= 50 ? 'seguir con «' + act.name + '»' : 'repetir «' + act.name + '» con rivales tranquilos']);
   return filas;
 }
 function foniaEnviaCarrera(puesto) {
@@ -1763,7 +1763,7 @@ function showResults() {
   const p = r.indexOf(player) + 1;
   $('resTitle').textContent = p === 1 ? '¡HAS GANADO!' : p <= 3 ? `¡PODIO! ${p}º` : `LLEGAS ${p}º`;
   let fin = null;
-  if (ruta && Mundos && stats.length) { fin = Mundos.termina({ pct: pctDe(stats) }); if (fin.abre) Mundos.elige(Mundos.desbloqueados() - 1); }
+  if (ruta && Mundos && stats.length) { fin = finRuta = Mundos.termina({ pct: pctDe(stats) }); if (fin.abre) Mundos.elige(Mundos.desbloqueados() - 1); }
   const earned = fin ? fin.estrellas : starsFor(p, stats), before = totalStars;
   totalStars += earned; store.set('stars', totalStars); renderStarBadge();
   $('resStars').textContent = '⭐'.repeat(earned) + '☆'.repeat(3 - earned);
